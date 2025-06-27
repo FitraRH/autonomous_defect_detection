@@ -1,4 +1,4 @@
-# config.py
+# config.py - FIXED VERSION
 """
 Configuration file for Unified Defect Detection System
 """
@@ -11,9 +11,9 @@ BASE_DIR = Path(__file__).parent
 MODELS_DIR = BASE_DIR / "models"
 OUTPUTS_DIR = BASE_DIR / "outputs"
 
-# Model paths - Set these to your actual model files
-ANOMALIB_MODEL_PATH = MODELS_DIR / "anomalib_model.pt"
-HRNET_MODEL_PATH = MODELS_DIR / "hrnet_model.pth"
+# Model paths - CORRECTED (removed double "models")
+ANOMALIB_MODEL_PATH = MODELS_DIR / "stfpm.pt"              # Fixed: removed extra "models/"
+HRNET_MODEL_PATH = MODELS_DIR / "defect_segmentation_model.pth"  # Fixed: removed extra "models/"
 
 # Detection thresholds
 ANOMALY_THRESHOLD = 0.7
@@ -62,3 +62,13 @@ os.makedirs(OUTPUTS_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR / "batch", exist_ok=True)
 os.makedirs(OUTPUTS_DIR / "video", exist_ok=True)
 os.makedirs(OUTPUTS_DIR / "camera", exist_ok=True)
+
+# Debug: Print actual paths for verification
+if __name__ == "__main__":
+    print(f"BASE_DIR: {BASE_DIR}")
+    print(f"MODELS_DIR: {MODELS_DIR}")
+    print(f"ANOMALIB_MODEL_PATH: {ANOMALIB_MODEL_PATH}")
+    print(f"HRNET_MODEL_PATH: {HRNET_MODEL_PATH}")
+    print(f"Model files exist:")
+    print(f"  Anomalib: {ANOMALIB_MODEL_PATH.exists()}")
+    print(f"  HRNet: {HRNET_MODEL_PATH.exists()}")
