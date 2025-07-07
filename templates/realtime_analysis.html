@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Analysis - Defect Detective</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Real-time specific styles */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.6); }
+        }
+        
+        @keyframes defect-alert {
+            0%, 100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.5); }
+            50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.9), 0 0 35px rgba(239, 68, 68, 0.7); }
+        }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .sidebar-active { background-color: #1e40af; }
+        .status-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-good { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+        .status-defect { background: linear-gradient(135deg, #ef4444, #dc2626); box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+        .status-processing { background: linear-gradient(135deg, #f59e0b, #d97706); animation: pulse 2s infinite; }
+        .status-disconnected { background: linear-gradient(135deg, #6b7280, #4b5563); }
+        
+        .detecting { animation: pulse-glow 2s infinite; }
+        .defect-detected { animation: defect-alert 1s infinite; }
+        
+        .detection-overlay { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; border-radius: 8px; }
+        
+        .slide-in-animation { animation: slideInRight 0.5s ease-out; }
+        .bounce-in-animation { animation: bounceIn 0.6s ease-out; }
+        
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+
+<body class="bg-gray-100" x-data="realtimeApp()">
+    <!-- Sidebar -->
+    <div class="flex h-screen">
+        <div class="w-64 bg-gray-800 text-white flex flex-col">
+            <!-- Logo -->
+            <div class="p-6 border-b border-gray-700">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-search text-blue-400 text-2xl"></i>
+                    <h1 class="text-xl font-bold">Defect Detective</h1>
+                </div>
+            </div>
+            
+            <!-- Navigation -->
+            <nav class="flex-1 p-4">
+                <ul class="space-y-2">
+                    <li>
+                        <a href="/" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700 transition-colors">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/analysis" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700 transition-colors">
+                            <i class="fas fa-microscope"></i>
+                            <span>Enhanced Analysis</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/realtime" class="flex items-center space-x-3 p-3 rounded-lg sidebar-active transition-colors">
+                            <i class="fas fa-video"></i>
+                            <span>Real-Time Analysis</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/history" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700 transition-colors">
+                            <i class="fas fa-history"></i>
+                            <span>History</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/settings" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-700 transition-colors">
+                            <i class="fas fa-cog"></i>
+                            <span>Settings</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <!-- Status -->
+            <div class="p-4 border-t border-gray-700">
+                <div class="flex items-center space-x-2 text-sm">
+                    <div class="status-indicator" :class="systemStatus.class"></div>
+                    <span x-text="systemStatus.text">System Ready</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-1">Real-Time Detection Interface</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="bg-white shadow-sm border-b p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900">Real-Time Defect Detection</h2>
+                        <p class="text-gray-600">Live camera analysis with real-time bounding boxes</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <span class="status-indicator" :class="cameraStatus.class"></span>
+                            <span x-text="cameraStatus.text">Camera Disconnected</span>
+                        </div>
+                        <div x-show="sessionActive" class="text-sm text-gray-600">
+                            Session: <span class="font-mono font-semibold" x-text="sessionDuration">00:00:00</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <main class="flex-1 overflow-auto p-6">
+                <div class="max-w-7xl mx-auto">
+                    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                        
+                        <!-- Camera Feed Section -->
+                        <div class="xl:col-span-2">
+                            <div class="bg-white rounded-lg shadow-md p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-lg font-semibold text-gray-800">
+                                        <i class="fas fa-camera mr-2 text-blue-500"></i>
+                                        Camera Feed
+                                    </h3>
+                                    <div class="flex space-x-2">
+                                        <button 
+                                            @click="startDetection()" 
+                                            :disabled="sessionActive"
+                                            class="bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors">
+                                            <i class="fas fa-play mr-2"></i>Start Detection
+                                        </button>
+                                        <button 
+                                            @click="stopDetection()" 
+                                            :disabled="!sessionActive"
+                                            class="bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors">
+                                            <i class="fas fa-stop mr-2"></i>Stop Detection
+                                        </button>
+                                        <button 
+                                            @click="manualCapture()" 
+                                            :disabled="!sessionActive"
+                                            class="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors">
+                                            <i class="fas fa-camera mr-2"></i>Capture
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Camera Container -->
+                                <div class="relative max-w-full mx-auto">
+                                    <!-- Video Element -->
+                                    <video 
+                                        x-ref="videoElement" 
+                                        autoplay 
+                                        muted 
+                                        playsinline
+                                        :class="{'detecting': sessionActive, 'defect-detected': currentDetection?.decision === 'DEFECT'}"
+                                        x-show="cameraActive"
+                                        class="w-full h-auto rounded-lg shadow-lg transition-all duration-300">
+                                    </video>
+                                    
+                                    <!-- Detection Canvas -->
+                                    <canvas 
+                                        x-ref="detectionCanvas" 
+                                        class="detection-overlay"
+                                        x-show="cameraActive">
+                                    </canvas>
+                                    
+                                    <!-- Camera Placeholder -->
+                                    <div x-show="!cameraActive" class="flex items-center justify-center h-96 bg-gray-200 rounded-lg">
+                                        <div class="text-center">
+                                            <i class="fas fa-video-slash text-6xl text-gray-400 mb-4"></i>
+                                            <p class="text-gray-600 text-lg">Camera feed will appear here</p>
+                                            <p class="text-gray-500 text-sm">Click "Start Detection" to begin</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- FPS Counter -->
+                                    <div x-show="sessionActive" class="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm font-mono">
+                                        <span x-text="currentFPS">0</span> FPS
+                                    </div>
+                                </div>
+                                
+                                <!-- Current Detection Result -->
+                                <div x-show="currentDetection && sessionActive" class="mt-4 p-4 rounded-lg border transition-all duration-300" :class="currentDetection?.decision === 'DEFECT' ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center space-x-2">
+                                            <span class="status-indicator" :class="currentDetection?.decision === 'DEFECT' ? 'status-defect' : 'status-good'"></span>
+                                            <span class="font-semibold text-lg" x-text="currentDetection?.decision || '-'">-</span>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="text-sm text-gray-600">Confidence</div>
+                                            <div class="font-semibold" x-text="currentDetection?.confidence || '-'">-</div>
+                                        </div>
+                                    </div>
+                                    <div x-show="currentDetection?.defects?.length > 0" class="mt-2">
+                                        <div class="text-sm font-medium text-gray-700 mb-1">Detected Defects:</div>
+                                        <div class="flex flex-wrap gap-1">
+                                            <template x-for="defect in currentDetection?.defects || []" :key="defect">
+                                                <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium" x-text="defect.replace('_', ' ').toUpperCase()"></span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Real-Time Statistics -->
+                        <div class="space-y-6">
+                            <!-- Live Statistics -->
+                            <div class="bg-white rounded-lg shadow-md p-6">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                                    <i class="fas fa-chart-bar mr-2 text-green-500"></i>
+                                    Live Statistics
+                                </h3>
+                                <div class="space-y-4">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-600">Total Frames</span>
+                                        <span class="font-semibold text-lg" x-text="stats.totalFrames">0</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-600">Good Products</span>
+                                        <span class="font-semibold text-lg text-green-600" x-text="stats.goodCount">0</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-600">Defective Products</span>
+                                        <span class="font-semibold text-lg text-red-600" x-text="stats.defectCount">0</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-600">Detection Rate</span>
+                                        <span class="font-semibold text-lg" x-text="stats.defectRate + '%'">0%</span>
+                                    </div>
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-600">Screenshots</span>
+                                        <span class="font-semibold text-lg text-blue-600" x-text="capturedScreenshots.length">0</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Session Controls -->
+                            <div class="bg-white rounded-lg shadow-md p-6">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                                    <i class="fas fa-cogs mr-2 text-purple-500"></i>
+                                    Session Controls
+                                </h3>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Camera Source</label>
+                                        <select x-model="selectedCamera" class="w-full p-2 border border-gray-300 rounded-lg" :disabled="sessionActive">
+                                            <template x-for="camera in availableCameras" :key="camera.deviceId">
+                                                <option :value="camera.deviceId" x-text="camera.label || `Camera ${camera.index + 1}`"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Detection Interval</label>
+                                        <select x-model="detectionInterval" class="w-full p-2 border border-gray-300 rounded-lg" :disabled="sessionActive">
+                                            <option value="1000">Every 1 second</option>
+                                            <option value="2000">Every 2 seconds</option>
+                                            <option value="3000">Every 3 seconds</option>
+                                            <option value="5000">Every 5 seconds</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="flex items-center">
+                                            <input type="checkbox" x-model="autoCapture" class="mr-2">
+                                            <span class="text-sm">Auto-capture defect screenshots</span>
+                                        </label>
+                                    </div>
+                                    <button 
+                                        @click="resetStats()" 
+                                        class="w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
+                                        <i class="fas fa-refresh mr-2"></i>Reset Statistics
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Recent Detections -->
+                            <div class="bg-white rounded-lg shadow-md p-6">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                                    <i class="fas fa-clock mr-2 text-orange-500"></i>
+                                    Recent Detections
+                                </h3>
+                                <div class="space-y-2 max-h-64 overflow-y-auto">
+                                    <template x-for="detection in recentDetections.slice(0, 10)" :key="detection.id">
+                                        <div class="slide-in-animation flex items-center justify-between p-2 border rounded transition-all hover:shadow-md" :class="detection.decision === 'DEFECT' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'">
+                                            <div class="flex items-center space-x-2">
+                                                <span class="status-indicator" :class="detection.decision === 'DEFECT' ? 'status-defect' : 'status-good'"></span>
+                                                <span class="text-sm font-medium" x-text="detection.decision"></span>
+                                            </div>
+                                            <div class="text-xs text-gray-500" x-text="new Date(detection.timestamp).toLocaleTimeString()"></div>
+                                        </div>
+                                    </template>
+                                    <div x-show="recentDetections.length === 0" class="text-center text-gray-500 py-8">
+                                        <i class="fas fa-inbox text-4xl mb-2"></i>
+                                        <p>No detections yet</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Captured Screenshots Section -->
+                    <div class="mt-8">
+                        <div class="bg-white rounded-lg shadow-md p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-800">
+                                    <i class="fas fa-images mr-2 text-indigo-500"></i>
+                                    Captured Screenshots (<span x-text="capturedScreenshots.length">0</span>)
+                                </h3>
+                                <button 
+                                    @click="clearScreenshots()" 
+                                    :disabled="capturedScreenshots.length === 0"
+                                    class="bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg transition-colors">
+                                    <i class="fas fa-trash mr-2"></i>Clear All
+                                </button>
+                            </div>
+                            <div x-show="capturedScreenshots.length === 0" class="text-center text-gray-500 py-12">
+                                <i class="fas fa-camera text-6xl mb-4 opacity-30"></i>
+                                <p class="text-lg">No screenshots captured yet</p>
+                                <p class="text-sm">Screenshots will appear here when defects are detected</p>
+                            </div>
+                            <div x-show="capturedScreenshots.length > 0" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                                <template x-for="screenshot in capturedScreenshots" :key="screenshot.id">
+                                    <div class="bounce-in-animation relative group cursor-pointer bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-all transform hover:scale-105" @click="openScreenshotModal(screenshot)">
+                                        <img :src="screenshot.dataURL" class="w-full h-24 object-cover" :alt="`Screenshot ${screenshot.id}`">
+                                        <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity flex items-center justify-center">
+                                            <i class="fas fa-expand text-white opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </div>
+                                        <div class="absolute top-1 left-1 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
+                                            <span x-text="new Date(screenshot.timestamp).toLocaleTimeString()"></span>
+                                        </div>
+                                        <div x-show="screenshot.result?.final_decision === 'DEFECT'" class="absolute top-1 right-1 bg-red-500 text-white text-xs px-2 py-1 rounded font-semibold">
+                                            DEFECT
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Screenshot Modal -->
+    <div x-show="modalOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.self="closeModal()">
+        <div x-show="modalOpen" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform scale-90" x-transition:enter-end="opacity-100 transform scale-100" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 transform scale-100" x-transition:leave-end="opacity-0 transform scale-90" class="bg-white rounded-lg p-6 max-w-4xl max-h-[90vh] overflow-auto m-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold">Screenshot Details</h3>
+                <button @click="closeModal()" class="text-gray-500 hover:text-gray-700 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div x-show="selectedScreenshot">
+                <div class="text-center">
+                    <img :src="selectedScreenshot?.dataURL" class="max-w-full max-h-96 mx-auto rounded-lg shadow-lg mb-4" :alt="`Screenshot ${selectedScreenshot?.id}`">
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div class="text-left">
+                            <span class="font-semibold">Captured:</span><br>
+                            <span x-text="selectedScreenshot ? new Date(selectedScreenshot.timestamp).toLocaleString() : ''"></span>
+                        </div>
+                        <div class="text-left">
+                            <span class="font-semibold">Decision:</span><br>
+                            <span class="px-2 py-1 rounded text-white" :class="selectedScreenshot?.result?.final_decision === 'DEFECT' ? 'bg-red-500' : 'bg-green-500'" x-text="selectedScreenshot?.result?.final_decision || 'MANUAL CAPTURE'"></span>
+                        </div>
+                        <template x-if="selectedScreenshot?.result">
+                            <div class="text-left">
+                                <span class="font-semibold">Confidence:</span><br>
+                                <span x-text="selectedScreenshot?.result ? (selectedScreenshot.result.anomaly_detection.anomaly_score * 100).toFixed(1) + '%' : ''"></span>
+                            </div>
+                            <div class="text-left">
+                                <span class="font-semibold">Processing Time:</span><br>
+                                <span x-text="selectedScreenshot?.result ? selectedScreenshot.result.processing_time.toFixed(3) + 's' : ''"></span>
+                            </div>
+                        </template>
+                    </div>
+                    <div x-show="selectedScreenshot?.result?.detected_defect_types?.length > 0" class="mt-4">
+                        <h4 class="font-semibold mb-2">Detected Defects:</h4>
+                        <div class="flex flex-wrap gap-2 justify-center">
+                            <template x-for="defect in selectedScreenshot?.result?.detected_defect_types || []" :key="defect">
+                                <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-sm font-medium" x-text="defect.replace('_', ' ').toUpperCase()"></span>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex space-x-4 justify-center">
+                        <a :href="selectedScreenshot?.dataURL" :download="`defect_detection_${selectedScreenshot?.timestamp}.jpg`" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <i class="fas fa-download mr-2"></i>Download
+                        </a>
+                        <button @click="deleteScreenshot(selectedScreenshot?.id)" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors">
+                            <i class="fas fa-trash mr-2"></i>Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications -->
+    <div x-show="notification.show" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 transform translate-x-full" x-transition:enter-end="opacity-100 transform translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 transform translate-x-0" x-transition:leave-end="opacity-0 transform translate-x-full" class="fixed top-4 right-4 z-50 max-w-sm">
+        <div class="rounded-lg px-4 py-3 text-white shadow-lg" :class="notification.type === 'success' ? 'bg-green-500' : notification.type === 'error' ? 'bg-red-500' : 'bg-yellow-500'">
+            <div class="flex items-center">
+                <i class="fas mr-2" :class="notification.type === 'success' ? 'fa-check-circle' : notification.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'"></i>
+                <span x-text="notification.message"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function realtimeApp() {
+            return {
+                // System status
+                systemStatus: { class: 'status-good', text: 'System Ready' },
+                cameraStatus: { class: 'status-disconnected', text: 'Camera Disconnected' },
+                
+                // Session state
+                sessionActive: false,
+                sessionId: null,
+                sessionStartTime: null,
+                sessionDuration: '00:00:00',
+                
+                // Camera state
+                cameraActive: false,
+                mediaStream: null,
+                availableCameras: [],
+                selectedCamera: '0',
+                
+                // Detection state
+                detectionInterval: 2000,
+                detectionIntervalId: null,
+                autoCapture: true,
+                currentDetection: null,
+                currentFPS: 0,
+                
+                // Statistics
+                stats: {
+                    totalFrames: 0,
+                    goodCount: 0,
+                    defectCount: 0,
+                    defectRate: 0
+                },
+                
+                // Data
+                recentDetections: [],
+                capturedScreenshots: [],
+                
+                // UI state
+                modalOpen: false,
+                selectedScreenshot: null,
+                notification: { show: false, type: 'info', message: '' },
+                
+                async init() {
+                    await this.checkSystemStatus();
+                    await this.enumerateCameras();
+                    this.startSessionTimer();
+                    this.startFPSCounter();
+                    console.log('Real-time app initialized');
+                },
+                
+                async checkSystemStatus() {
+                    try {
+                        const response = await fetch('/api/health');
+                        const data = await response.json();
+                        
+                        if (data.status === 'ok') {
+                            this.systemStatus = { class: 'status-good', text: 'System Ready' };
+                        } else {
+                            this.systemStatus = { class: 'status-defect', text: 'System Error' };
+                        }
+                    } catch (error) {
+                        console.error('System status check failed:', error);
+                        this.systemStatus = { class: 'status-defect', text: 'Connection Error' };
+                    }
+                },
+                
+                async enumerateCameras() {
+                    try {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        this.availableCameras = devices
+                            .filter(device => device.kind === 'videoinput')
+                            .map((device, index) => ({
+                                deviceId: device.deviceId,
+                                label: device.label || `Camera ${index + 1}`,
+                                index
+                            }));
+                        
+                        if (this.availableCameras.length === 0) {
+                            this.showNotification('error', 'No cameras found');
+                        }
+                    } catch (error) {
+                        console.error('Error enumerating cameras:', error);
+                        this.showNotification('error', 'Failed to access cameras');
+                    }
+                },
+                
+                async startDetection() {
+                    try {
+                        // Start camera
+                        await this.startCamera();
+                        
+                        // Start session on server
+                        const response = await fetch('/api/realtime/start-session', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        
+                        if (!response.ok) throw new Error('Failed to start session');
+                        
+                        const data = await response.json();
+                        this.sessionId = data.session_id;
+                        this.sessionActive = true;
+                        this.sessionStartTime = new Date();
+                        
+                        // Start detection loop
+                        this.detectionIntervalId = setInterval(() => {
+                            this.performDetection();
+                        }, parseInt(this.detectionInterval));
+                        
+                        this.showNotification('success', 'Real-time detection started');
+                        
+                    } catch (error) {
+                        console.error('Failed to start detection:', error);
+                        this.showNotification('error', 'Failed to start detection: ' + error.message);
+                        this.stopDetection();
+                    }
+                },
+                
+                async stopDetection() {
+                    try {
+                        // Stop detection loop
+                        if (this.detectionIntervalId) {
+                            clearInterval(this.detectionIntervalId);
+                            this.detectionIntervalId = null;
+                        }
+                        
+                        // Stop camera
+                        this.stopCamera();
+                        
+                        // Stop session on server
+                        if (this.sessionId) {
+                            const response = await fetch('/api/realtime/stop-session', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                console.log('Session report:', data.session_report);
+                            }
+                        }
+                        
+                        this.sessionActive = false;
+                        this.sessionId = null;
+                        this.currentDetection = null;
+                        
+                        this.showNotification('success', 'Detection session stopped');
+                        
+                    } catch (error) {
+                        console.error('Error stopping detection:', error);
+                        this.showNotification('error', 'Error stopping detection');
+                    }
+                },
+                
+                async startCamera() {
+                    try {
+                        const constraints = {
+                            video: {
+                                deviceId: this.selectedCamera === '0' ? undefined : { exact: this.selectedCamera },
+                                width: { ideal: 1280 },
+                                height: { ideal: 720 }
+                            }
+                        };
+                        
+                        this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                        this.$refs.videoElement.srcObject = this.mediaStream;
+                        
+                        // Wait for video to load
+                        await new Promise(resolve => {
+                            this.$refs.videoElement.addEventListener('loadedmetadata', () => {
+                                // Setup canvas
+                                const canvas = this.$refs.detectionCanvas;
+                                canvas.width = this.$refs.videoElement.videoWidth;
+                                canvas.height = this.$refs.videoElement.videoHeight;
+                                canvas.style.width = '100%';
+                                canvas.style.height = 'auto';
+                                resolve();
+                            }, { once: true });
+                        });
+                        
+                        this.cameraActive = true;
+                        this.cameraStatus = { class: 'status-good', text: 'Camera Connected' };
+                        
+                    } catch (error) {
+                        console.error('Camera access failed:', error);
+                        this.cameraStatus = { class: 'status-defect', text: 'Camera Error' };
+                        throw error;
+                    }
+                },
+                
+                stopCamera() {
+                    if (this.mediaStream) {
+                        this.mediaStream.getTracks().forEach(track => track.stop());
+                        this.mediaStream = null;
+                    }
+                    
+                    this.cameraActive = false;
+                    this.cameraStatus = { class: 'status-disconnected', text: 'Camera Disconnected' };
+                    
+                    // Clear canvas
+                    const canvas = this.$refs.detectionCanvas;
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                },
+                
+                async performDetection() {
+                    if (!this.sessionActive || !this.cameraActive) return;
+                    
+                    try {
+                        // Capture frame
+                        const canvas = document.createElement('canvas');
+                        const video = this.$refs.videoElement;
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0);
+                        
+                        // Convert to blob
+                        const blob = await new Promise(resolve => {
+                            canvas.toBlob(resolve, 'image/jpeg', 0.8);
+                        });
+                        
+                        // Send for detection
+                        const formData = new FormData();
+                        formData.append('image', blob, 'camera_frame.jpg');
+                        
+                        const response = await fetch('/api/realtime/process-frame', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            this.handleDetectionResult(result);
+                        }
+                        
+                    } catch (error) {
+                        console.error('Detection failed:', error);
+                    }
+                },
+                
+                handleDetectionResult(result) {
+                    const frameResult = result.frame_result;
+                    
+                    // Update current detection
+                    this.currentDetection = {
+                        decision: frameResult.decision,
+                        confidence: (frameResult.anomaly_score * 100).toFixed(1) + '%',
+                        defects: frameResult.detected_defects || []
+                    };
+                    
+                    // Update statistics
+                    if (result.session_stats) {
+                        this.stats = {
+                            totalFrames: result.session_stats.total_frames,
+                            goodCount: result.session_stats.good_count,
+                            defectCount: result.session_stats.defect_count,
+                            defectRate: result.session_stats.defect_rate
+                        };
+                    }
+                    
+                    // Add to recent detections
+                    this.recentDetections.unshift({
+                        id: Date.now(),
+                        timestamp: frameResult.timestamp,
+                        decision: frameResult.decision,
+                        confidence: frameResult.confidence
+                    });
+                    
+                    // Keep only recent 20 detections
+                    if (this.recentDetections.length > 20) {
+                        this.recentDetections = this.recentDetections.slice(0, 20);
+                    }
+                    
+                    // Draw bounding boxes
+                    this.drawBoundingBoxes(frameResult.bounding_boxes || []);
+                    
+                    // Handle auto-capture
+                    if (result.screenshot_captured && this.autoCapture) {
+                        this.addScreenshot(result.screenshot_captured, result);
+                    }
+                },
+                
+                drawBoundingBoxes(boundingBoxes) {
+                    const canvas = this.$refs.detectionCanvas;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Clear previous drawings
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Draw bounding boxes
+                    boundingBoxes.forEach(box => {
+                        const colors = {
+                            'scratch': '#00FFFF',
+                            'stained': '#800080',
+                            'damaged': '#FF0000',
+                            'missing_component': '#FFFF00',
+                            'open': '#FF00FF'
+                        };
+                        
+                        const color = colors[box.defect_type] || '#FFFFFF';
+                        
+                        // Draw rectangle
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(box.x, box.y, box.width, box.height);
+                        
+                        // Draw label
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                        ctx.fillRect(box.x, box.y - 25, box.width, 25);
+                        ctx.fillStyle = 'white';
+                        ctx.font = '12px Arial';
+                        ctx.fillText(box.defect_type.replace('_', ' '), box.x + 5, box.y - 8);
+                        
+                        // Draw confidence
+                        ctx.fillText(`${(box.confidence * 100).toFixed(0)}%`, box.x + 5, box.y + box.height - 5);
+                    });
+                },
+                
+                async manualCapture() {
+                    try {
+                        // Capture frame with overlay
+                        const canvas = document.createElement('canvas');
+                        const video = this.$refs.videoElement;
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0);
+                        
+                        // Draw overlay
+                        const overlayCanvas = this.$refs.detectionCanvas;
+                        if (overlayCanvas.width > 0) {
+                            ctx.drawImage(overlayCanvas, 0, 0);
+                        }
+                        
+                        const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+                        
+                        // Send to server
+                        const response = await fetch('/api/realtime/capture-screenshot', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                image_base64: dataURL,
+                                detection_result: this.currentDetection
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.addScreenshot(data.screenshot, null, dataURL);
+                            this.showNotification('success', 'Screenshot captured');
+                        }
+                        
+                    } catch (error) {
+                        console.error('Manual capture failed:', error);
+                        this.showNotification('error', 'Capture failed');
+                    }
+                },
+                
+                addScreenshot(screenshotInfo, result, dataURL = null) {
+                    const screenshot = {
+                        id: Date.now(),
+                        timestamp: new Date(),
+                        dataURL: dataURL || screenshotInfo.dataURL || URL.createObjectURL(screenshotInfo),
+                        result: result?.frame_result || screenshotInfo.detection_result,
+                        info: screenshotInfo
+                    };
+                    
+                    this.capturedScreenshots.unshift(screenshot);
+                },
+                
+                openScreenshotModal(screenshot) {
+                    this.selectedScreenshot = screenshot;
+                    this.modalOpen = true;
+                },
+                
+                closeModal() {
+                    this.modalOpen = false;
+                    this.selectedScreenshot = null;
+                },
+                
+                deleteScreenshot(screenshotId) {
+                    this.capturedScreenshots = this.capturedScreenshots.filter(s => s.id !== screenshotId);
+                    this.closeModal();
+                    this.showNotification('success', 'Screenshot deleted');
+                },
+                
+                clearScreenshots() {
+                    if (confirm('Are you sure you want to clear all screenshots?')) {
+                        this.capturedScreenshots = [];
+                        this.showNotification('success', 'All screenshots cleared');
+                    }
+                },
+                
+                resetStats() {
+                    this.stats = {
+                        totalFrames: 0,
+                        goodCount: 0,
+                        defectCount: 0,
+                        defectRate: 0
+                    };
+                    this.recentDetections = [];
+                    this.showNotification('success', 'Statistics reset');
+                },
+                
+                startSessionTimer() {
+                    setInterval(() => {
+                        if (this.sessionActive && this.sessionStartTime) {
+                            const now = new Date();
+                            const diff = now - this.sessionStartTime;
+                            const hours = Math.floor(diff / 3600000);
+                            const minutes = Math.floor((diff % 3600000) / 60000);
+                            const seconds = Math.floor((diff % 60000) / 1000);
+                            
+                            this.sessionDuration = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                        }
+                    }, 1000);
+                },
+                
+                startFPSCounter() {
+                    let frameCount = 0;
+                    let lastTime = Date.now();
+                    
+                    const countFrame = () => {
+                        if (this.sessionActive) {
+                            frameCount++;
+                            const currentTime = Date.now();
+                            
+                            if (currentTime - lastTime >= 1000) {
+                                this.currentFPS = frameCount;
+                                frameCount = 0;
+                                lastTime = currentTime;
+                            }
+                        }
+                        
+                        requestAnimationFrame(countFrame);
+                    };
+                    
+                    countFrame();
+                },
+                
+                showNotification(type, message) {
+                    this.notification = { show: true, type, message };
+                    setTimeout(() => {
+                        this.notification.show = false;
+                    }, 3000);
+                },
+                
+                // Cleanup on page unload
+                beforeDestroy() {
+                    if (this.sessionActive) {
+                        this.stopDetection();
+                    }
+                }
+            }
+        }
+        
+        // Handle page unload
+        window.addEventListener('beforeunload', () => {
+            // Alpine.js will handle cleanup via beforeDestroy
+        });
+    </script>
+</body>
+</html>

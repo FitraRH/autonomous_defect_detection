@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Defect Detective - Settings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50" x-data="settingsApp()" x-init="init()">
+    <!-- Sidebar -->
+    <div class="fixed inset-y-0 left-0 w-64 bg-gray-900 text-white">
+        <div class="flex items-center justify-center h-16 bg-gray-800">
+            <i class="fas fa-eye text-2xl mr-2 text-blue-400"></i>
+            <span class="text-xl font-bold">Defect Detective</span>
+        </div>
+        
+        <nav class="mt-8">
+            <a href="/" class="flex items-center px-6 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                <i class="fas fa-chart-pie mr-3"></i>
+                Dashboard
+            </a>
+            <a href="/analysis" class="flex items-center px-6 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                <i class="fas fa-plus-circle mr-3"></i>
+                New Analysis
+            </a>
+            <a href="/realtime" class="flex items-center px-6 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                <i class="fas fa-video mr-3"></i>
+                Real-Time Analysis
+            </a>
+            <a href="/history" class="flex items-center px-6 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                <i class="fas fa-history mr-3"></i>
+                History
+            </a>
+            <a href="/settings" class="flex items-center px-6 py-3 text-white bg-gray-700 border-r-4 border-blue-500">
+                <i class="fas fa-cog mr-3"></i>
+                Settings
+            </a>
+        </nav>
+        
+        <!-- User Info -->
+        <div class="absolute bottom-4 left-4 right-4">
+            <div class="bg-gray-800 rounded-lg p-3">
+                <div class="flex items-center mb-2">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                    <span class="text-sm">Login successful</span>
+                </div>
+                <p class="text-xs text-gray-400">Welcome back, navin!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="ml-64 min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="flex items-center justify-between px-6 py-4">
+                <h1 class="text-2xl font-semibold text-gray-900">Settings</h1>
+                <div class="flex items-center space-x-4">
+                    <button @click="resetToDefaults()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
+                        <i class="fas fa-undo mr-2"></i>Reset to Defaults
+                    </button>
+                    <button @click="saveSettings()" :disabled="saving" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                        <i class="fas fa-save mr-2" :class="{ 'fa-spin': saving }"></i>
+                        <span x-text="saving ? 'Saving...' : 'Save Settings'"></span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div x-show="loading" x-cloak class="flex items-center justify-center h-64">
+            <div class="flex items-center space-x-2">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span class="text-gray-600">Loading settings...</span>
+            </div>
+        </div>
+
+        <!-- Settings Content -->
+        <main class="p-6" x-show="!loading" x-cloak>
+            <div class="max-w-4xl mx-auto">
+                <!-- Settings Tabs -->
+                <div class="bg-white rounded-lg shadow-md mb-6">
+                    <div class="border-b border-gray-200">
+                        <nav class="flex space-x-8 px-6" aria-label="Tabs">
+                            <button @click="activeTab = 'account'" 
+                                    :class="activeTab === 'account' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                    class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                                Account
+                            </button>
+                            <button @click="activeTab = 'detection'" 
+                                    :class="activeTab === 'detection' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                    class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                                Detection Settings
+                            </button>
+                            <button @click="activeTab = 'notifications'" 
+                                    :class="activeTab === 'notifications' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                    class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                                Notifications
+                            </button>
+                            <button @click="activeTab = 'advanced'" 
+                                    :class="activeTab === 'advanced' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                                    class="py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                                Advanced
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+
+                <!-- Account Settings -->
+                <div x-show="activeTab === 'account'" class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-800">
+                        <i class="fas fa-user mr-2 text-blue-500"></i>
+                        User Settings
+                    </h2>
+                    <p class="text-gray-600 mb-6">Manage your account settings and preferences</p>
+
+                    <!-- Personal Information -->
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                                <input type="text" 
+                                       x-model="settings.fullName"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                       placeholder="Enter your full name">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                                <input type="text" 
+                                       x-model="settings.username"
+                                       disabled
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                                       placeholder="navin">
+                                <p class="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+                            </div>
+                        </div>
+
+                        <!-- Change Password Section -->
+                        <div class="border-t pt-6">
+                            <h3 class="text-md font-medium text-gray-800 mb-4">Change Password</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                                    <input type="password" 
+                                           x-model="passwordForm.current"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                           placeholder="Enter your current password">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                                    <input type="password" 
+                                           x-model="passwordForm.new"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                           placeholder="Enter your new password">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+                                    <input type="password" 
+                                           x-model="passwordForm.confirm"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                           placeholder="Confirm your new password">
+                                </div>
+                            </div>
+                            <button @click="changePassword()" 
+                                    class="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
+                                <i class="fas fa-key mr-2"></i>Change Password
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detection Settings -->
+                <div x-show="activeTab === 'detection'" class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-800">
+                        <i class="fas fa-search mr-2 text-green-500"></i>
+                        Detection Configuration
+                    </h2>
+                    <p class="text-gray-600 mb-6">Configure AI detection parameters and thresholds</p>
+
+                    <div class="space-y-6">
+                        <!-- Threshold Settings -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Anomaly Detection Threshold</label>
+                                <div class="space-y-2">
+                                    <input type="range" 
+                                           x-model="settings.anomaly_threshold"
+                                           min="0.1" max="1.0" step="0.05"
+                                           class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                    <div class="flex justify-between text-xs text-gray-500">
+                                        <span>0.1 (Sensitive)</span>
+                                        <span x-text="settings.anomaly_threshold"></span>
+                                        <span>1.0 (Conservative)</span>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Higher values reduce false positives but may miss subtle defects</p>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Defect Classification Threshold</label>
+                                <div class="space-y-2">
+                                    <input type="range" 
+                                           x-model="settings.defect_threshold"
+                                           min="0.1" max="1.0" step="0.05"
+                                           class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                    <div class="flex justify-between text-xs text-gray-500">
+                                        <span>0.1 (Sensitive)</span>
+                                        <span x-text="settings.defect_threshold"></span>
+                                        <span>1.0 (Conservative)</span>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Confidence threshold for defect type classification</p>
+                            </div>
+                        </div>
+
+                        <!-- Processing Options -->
+                        <div class="border-t pt-6">
+                            <h3 class="text-md font-medium text-gray-800 mb-4">Processing Options</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-700">Auto-save Results</h4>
+                                        <p class="text-xs text-gray-500">Automatically save analysis results to database</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" x-model="settings.auto_save_results" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+                                
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-700">Generate Visualizations</h4>
+                                        <p class="text-xs text-gray-500">Create visual analysis reports with bounding boxes</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" x-model="settings.generate_visualizations" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Export Format -->
+                        <div class="border-t pt-6">
+                            <h3 class="text-md font-medium text-gray-800 mb-4">Export Settings</h3>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Preferred Export Format</label>
+                                <select x-model="settings.preferred_format" 
+                                        class="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <option value="JSON">JSON</option>
+                                    <option value="CSV">CSV</option>
+                                    <option value="PDF">PDF Report</option>
+                                    <option value="XLSX">Excel Spreadsheet</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notification Settings -->
+                <div x-show="activeTab === 'notifications'" class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-800">
+                        <i class="fas fa-bell mr-2 text-yellow-500"></i>
+                        Notification Preferences
+                    </h2>
+                    <p class="text-gray-600 mb-6">Configure when and how you receive notifications</p>
+
+                    <div class="space-y-6">
+                        <!-- Email Notifications -->
+                        <div>
+                            <h3 class="text-md font-medium text-gray-800 mb-4">Email Notifications</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-700">Enable Notifications</h4>
+                                        <p class="text-xs text-gray-500">Receive email notifications for analysis results</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" x-model="settings.notifications_enabled" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+                                
+                                <div class="flex items-center justify-between" x-show="settings.notifications_enabled">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-700">Defect Detection Alerts</h4>
+                                        <p class="text-xs text-gray-500">Get notified immediately when defects are detected</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" x-model="settings.defect_alerts" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+                                
+                                <div class="flex items-center justify-between" x-show="settings.notifications_enabled">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-700">Daily Summary</h4>
+                                        <p class="text-xs text-gray-500">Receive daily analysis summary reports</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" x-model="settings.daily_summary" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Browser Notifications -->
+                        <div class="border-t pt-6">
+                            <h3 class="text-md font-medium text-gray-800 mb-4">Browser Notifications</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-700">Desktop Notifications</h4>
+                                        <p class="text-xs text-gray-500">Show browser notifications for analysis completion</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" x-model="settings.browser_notifications" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Settings -->
+                <div x-show="activeTab === 'advanced'" class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-800">
+                        <i class="fas fa-cogs mr-2 text-purple-500"></i>
+                        Advanced Configuration
+                    </h2>
+                    <p class="text-gray-600 mb-6">Advanced settings for system behavior and performance</p>
+
+                    <div class="space-y-6">
+                        <!-- System Information -->
+                        <div>
+                            <h3 class="text-md font-medium text-gray-800 mb-4">System Information</h3>
+                            <div class="bg-gray-50 rounded-lg p-4 space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">System Version:</span>
+                                    <span class="text-sm font-medium">v2.0.0</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">API Status:</span>
+                                    <span class="text-sm font-medium" :class="systemInfo.api_status === 'online' ? 'text-green-600' : 'text-red-600'" x-text="systemInfo.api_status || 'Unknown'"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">Models Loaded:</span>
+                                    <span class="text-sm font-medium" :class="systemInfo.models_loaded ? 'text-green-600' : 'text-red-600'" x-text="systemInfo.models_loaded ? 'Yes' : 'No'"></span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-600">Database:</span>
+                                    <span class="text-sm font-medium text-green-600">Connected</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Performance Settings -->
+                        <div class="border-t pt-6">
+                            <h3 class="text-md font-medium text-gray-800 mb-4">Performance Settings</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Max Concurrent Analyses</label>
+                                    <select x-model="settings.max_concurrent" 
+                                            class="w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                        <option value="1">1 (Conservative)</option>
+                                        <option value="2">2 (Balanced)</option>
+                                        <option value="4">4 (Aggressive)</option>
+                                    </select>
+                                    <p class="text-xs text-gray-500 mt-1">Number of images that can be processed simultaneously</p>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Cache Duration (hours)</label>
+                                    <input type="number" 
+                                           x-model="settings.cache_duration"
+                                           min="1" max="168"
+                                           class="w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                    <p class="text-xs text-gray-500 mt-1">How long to keep processed results in cache</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Data Management -->
+                        <div class="border-t pt-6">
+                            <h3 class="text-md font-medium text-gray-800 mb-4">Data Management</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-700">Auto-cleanup Old Files</h4>
+                                        <p class="text-xs text-gray-500">Automatically delete old analysis files after 30 days</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" x-model="settings.auto_cleanup" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+                                
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-700">Backup to Cloud</h4>
+                                        <p class="text-xs text-gray-500">Automatically backup analysis data to cloud storage</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" x-model="settings.cloud_backup" class="sr-only peer">
+                                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Danger Zone -->
+                        <div class="border-t border-red-200 pt-6">
+                            <h3 class="text-md font-medium text-red-800 mb-4">
+                                <i class="fas fa-exclamation-triangle mr-2"></i>
+                                Danger Zone
+                            </h3>
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-4 space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-red-700">Clear All Analysis Data</h4>
+                                        <p class="text-xs text-red-600">Permanently delete all analysis history and uploaded images</p>
+                                    </div>
+                                    <button @click="clearAllData()" 
+                                            class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm">
+                                        <i class="fas fa-trash mr-2"></i>Clear Data
+                                    </button>
+                                </div>
+                                
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-medium text-red-700">Reset All Settings</h4>
+                                        <p class="text-xs text-red-600">Reset all configuration to factory defaults</p>
+                                    </div>
+                                    <button @click="resetAllSettings()" 
+                                            class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm">
+                                        <i class="fas fa-undo mr-2"></i>Reset All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Alpine.js Settings Logic -->
+    <script>
+        function settingsApp() {
+            return {
+                loading: true,
+                saving: false,
+                activeTab: 'account',
+                
+                settings: {
+                    // Account settings
+                    fullName: 'navin',
+                    username: 'navin',
+                    
+                    // Detection settings
+                    anomaly_threshold: 0.7,
+                    defect_threshold: 0.85,
+                    auto_save_results: true,
+                    generate_visualizations: true,
+                    preferred_format: 'JSON',
+                    
+                    // Notification settings
+                    notifications_enabled: true,
+                    defect_alerts: true,
+                    daily_summary: false,
+                    browser_notifications: true,
+                    
+                    // Advanced settings
+                    max_concurrent: 2,
+                    cache_duration: 24,
+                    auto_cleanup: true,
+                    cloud_backup: false
+                },
+                
+                passwordForm: {
+                    current: '',
+                    new: '',
+                    confirm: ''
+                },
+                
+                systemInfo: {
+                    api_status: 'online',
+                    models_loaded: false
+                },
+
+                async init() {
+                    await this.loadSettings();
+                    await this.loadSystemInfo();
+                    this.loading = false;
+                },
+
+                async loadSettings() {
+                    try {
+                        const response = await fetch('/api/settings');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.settings = { ...this.settings, ...data.data };
+                        }
+                    } catch (error) {
+                        console.error('Error loading settings:', error);
+                        this.showNotification('Error loading settings', 'error');
+                    }
+                },
+
+                async loadSystemInfo() {
+                    try {
+                        const response = await fetch('/api/system-info');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.systemInfo = data.data;
+                        }
+                    } catch (error) {
+                        console.error('Error loading system info:', error);
+                    }
+                },
+
+                async saveSettings() {
+                    this.saving = true;
+                    
+                    try {
+                        const response = await fetch('/api/settings', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(this.settings)
+                        });
+
+                        if (response.ok) {
+                            this.showNotification('Settings saved successfully', 'success');
+                        } else {
+                            const error = await response.json();
+                            this.showNotification(`Error saving settings: ${error.error}`, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error saving settings:', error);
+                        this.showNotification('Error saving settings', 'error');
+                    } finally {
+                        this.saving = false;
+                    }
+                },
+
+                resetToDefaults() {
+                    if (!confirm('Are you sure you want to reset all settings to defaults? This will override your current configuration.')) {
+                        return;
+                    }
+
+                    this.settings = {
+                        fullName: 'navin',
+                        username: 'navin',
+                        anomaly_threshold: 0.7,
+                        defect_threshold: 0.85,
+                        auto_save_results: true,
+                        generate_visualizations: true,
+                        preferred_format: 'JSON',
+                        notifications_enabled: true,
+                        defect_alerts: true,
+                        daily_summary: false,
+                        browser_notifications: true,
+                        max_concurrent: 2,
+                        cache_duration: 24,
+                        auto_cleanup: true,
+                        cloud_backup: false
+                    };
+
+                    this.showNotification('Settings reset to defaults', 'success');
+                },
+
+                async changePassword() {
+                    if (!this.passwordForm.current || !this.passwordForm.new || !this.passwordForm.confirm) {
+                        this.showNotification('Please fill in all password fields', 'error');
+                        return;
+                    }
+
+                    if (this.passwordForm.new !== this.passwordForm.confirm) {
+                        this.showNotification('New passwords do not match', 'error');
+                        return;
+                    }
+
+                    if (this.passwordForm.new.length < 6) {
+                        this.showNotification('New password must be at least 6 characters long', 'error');
+                        return;
+                    }
+
+                    try {
+                        // Mock password change - in real app, send to API
+                        this.showNotification('Password changed successfully', 'success');
+                        this.passwordForm = { current: '', new: '', confirm: '' };
+                    } catch (error) {
+                        this.showNotification('Error changing password', 'error');
+                    }
+                },
+
+                async clearAllData() {
+                    const confirmation = prompt('This will permanently delete ALL analysis data. Type "DELETE" to confirm:');
+                    
+                    if (confirmation !== 'DELETE') {
+                        this.showNotification('Data deletion cancelled', 'info');
+                        return;
+                    }
+
+                    try {
+                        // Mock data clearing - in real app, send to API
+                        this.showNotification('All analysis data has been cleared', 'success');
+                    } catch (error) {
+                        this.showNotification('Error clearing data', 'error');
+                    }
+                },
+
+                async resetAllSettings() {
+                    const confirmation = prompt('This will reset ALL settings to factory defaults. Type "RESET" to confirm:');
+                    
+                    if (confirmation !== 'RESET') {
+                        this.showNotification('Settings reset cancelled', 'info');
+                        return;
+                    }
+
+                    this.resetToDefaults();
+                    await this.saveSettings();
+                },
+
+                showNotification(message, type = 'info') {
+                    const notification = document.createElement('div');
+                    notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                        type === 'error' ? 'bg-red-500 text-white' : 
+                        type === 'success' ? 'bg-green-500 text-white' : 
+                        'bg-blue-500 text-white'
+                    }`;
+                    notification.innerHTML = `
+                        <div class="flex items-center">
+                            <i class="fas ${
+                                type === 'error' ? 'fa-exclamation-circle' : 
+                                type === 'success' ? 'fa-check-circle' : 
+                                'fa-info-circle'
+                            } mr-2"></i>
+                            <span>${message}</span>
+                        </div>
+                    `;
+                    document.body.appendChild(notification);
+                    
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 5000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

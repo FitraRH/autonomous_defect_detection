@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Defect Detective - Analysis History</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50" x-data="historyApp()" x-init="init()">
+    <!-- Sidebar -->
+    <div class="fixed inset-y-0 left-0 w-64 bg-gray-900 text-white">
+        <div class="flex items-center justify-center h-16 bg-gray-800">
+            <i class="fas fa-eye text-2xl mr-2 text-blue-400"></i>
+            <span class="text-xl font-bold">Defect Detective</span>
+        </div>
+        
+        <nav class="mt-8">
+            <a href="/" class="flex items-center px-6 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                <i class="fas fa-chart-pie mr-3"></i>
+                Dashboard
+            </a>
+            <a href="/analysis" class="flex items-center px-6 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                <i class="fas fa-plus-circle mr-3"></i>
+                New Analysis
+            </a>
+            <a href="/realtime" class="flex items-center px-6 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                <i class="fas fa-video mr-3"></i>
+                Real-Time Analysis
+            </a>
+            <a href="/history" class="flex items-center px-6 py-3 text-white bg-gray-700 border-r-4 border-blue-500">
+                <i class="fas fa-history mr-3"></i>
+                History
+            </a>
+            <a href="/settings" class="flex items-center px-6 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-colors">
+                <i class="fas fa-cog mr-3"></i>
+                Settings
+            </a>
+        </nav>
+        
+        <!-- User Info -->
+        <div class="absolute bottom-4 left-4 right-4">
+            <div class="bg-gray-800 rounded-lg p-3">
+                <div class="flex items-center mb-2">
+                    <div class="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
+                    <span class="text-sm">Login successful</span>
+                </div>
+                <p class="text-xs text-gray-400">Welcome back, navin!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="ml-64 min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b">
+            <div class="flex items-center justify-between px-6 py-4">
+                <h1 class="text-2xl font-semibold text-gray-900">Analysis History</h1>
+                <div class="flex items-center space-x-4">
+                    <button @click="exportHistory()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-download mr-2"></i>Export Data
+                    </button>
+                    <button @click="refreshHistory()" class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Refresh">
+                        <i class="fas fa-sync-alt" :class="{ 'fa-spin': loading }"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div x-show="loading" x-cloak class="flex items-center justify-center h-64">
+            <div class="flex items-center space-x-2">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span class="text-gray-600">Loading analysis history...</span>
+            </div>
+        </div>
+
+        <!-- History Content -->
+        <main class="p-6" x-show="!loading" x-cloak>
+            <!-- Filters and Search -->
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-lg font-semibold mb-4 text-gray-800">
+                    <i class="fas fa-filter mr-2 text-blue-500"></i>
+                    Past Analyses
+                </h2>
+                
+                <!-- Search and Filter Bar -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                        <div class="relative">
+                            <input type="text" 
+                                   x-model="searchQuery"
+                                   @input="filterAnalyses()"
+                                   placeholder="Search by image name..."
+                                   class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Status Filter</label>
+                        <select x-model="statusFilter" 
+                                @change="filterAnalyses()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Status</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Failed">Failed</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Decision Filter</label>
+                        <select x-model="decisionFilter" 
+                                @change="filterAnalyses()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Decisions</option>
+                            <option value="GOOD">Good</option>
+                            <option value="DEFECT">Defect</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+                        <select x-model="dateFilter" 
+                                @change="filterAnalyses()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="">All Dates</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Clear Filters -->
+                <div class="flex justify-between items-center">
+                    <button @click="clearFilters()" 
+                            class="text-sm text-gray-600 hover:text-gray-800">
+                        <i class="fas fa-times mr-1"></i>Clear Filters
+                    </button>
+                    <div class="text-sm text-gray-600">
+                        Showing <span x-text="filteredAnalyses.length"></span> of <span x-text="allAnalyses.length"></span> analyses
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Table -->
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    @click="sortBy('image')">
+                                    <div class="flex items-center">
+                                        Image
+                                        <i class="fas fa-sort ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    @click="sortBy('analysis_date')">
+                                    <div class="flex items-center">
+                                        Analysis Date
+                                        <i class="fas fa-sort ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Defects
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    @click="sortBy('decision')">
+                                    <div class="flex items-center">
+                                        Status
+                                        <i class="fas fa-sort ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                                    @click="sortBy('score')">
+                                    <div class="flex items-center">
+                                        Score
+                                        <i class="fas fa-sort ml-1"></i>
+                                    </div>
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="analysis in paginatedAnalyses" :key="analysis.id">
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-file-image text-gray-400 mr-3"></i>
+                                            <div>
+                                                <div class="text-sm font-medium text-gray-900" x-text="analysis.image"></div>
+                                                <div class="text-xs text-gray-500" x-text="analysis.confidence || 'N/A'"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm text-gray-900" x-text="analysis.analysis_date"></div>
+                                        <div class="text-xs text-gray-500" x-text="analysis.analysis_time"></div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm text-gray-900" x-text="analysis.defects"></div>
+                                        <div class="text-xs text-gray-500" x-text="`${analysis.defect_count || 0} types`"></div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                                              :class="{
+                                                  'bg-green-100 text-green-800': analysis.decision === 'GOOD',
+                                                  'bg-red-100 text-red-800': analysis.decision === 'DEFECT',
+                                                  'bg-gray-100 text-gray-800': analysis.status === 'Failed'
+                                              }"
+                                              x-text="analysis.status === 'Failed' ? 'Failed' : analysis.decision"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm text-gray-900" x-text="analysis.score"></div>
+                                        <div class="text-xs text-gray-500" x-text="analysis.time"></div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                        <button @click="viewDetails(analysis.id)" 
+                                                class="text-blue-600 hover:text-blue-900 transition-colors" 
+                                                title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        <button @click="downloadAnalysis(analysis)" 
+                                                class="text-green-600 hover:text-green-900 transition-colors" 
+                                                title="Download">
+                                            <i class="fas fa-download"></i>
+                                        </button>
+                                        <button @click="deleteAnalysis(analysis.id)" 
+                                                class="text-red-600 hover:text-red-900 transition-colors" 
+                                                title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                    
+                    <!-- Empty State -->
+                    <div x-show="filteredAnalyses.length === 0" class="text-center py-12">
+                        <i class="fas fa-search text-gray-300 text-5xl mb-4"></i>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">No Analysis Found</h3>
+                        <p class="text-gray-500 mb-4" x-show="searchQuery || statusFilter || decisionFilter || dateFilter">
+                            No analyses match your current filters.
+                        </p>
+                        <p class="text-gray-500 mb-4" x-show="!searchQuery && !statusFilter && !decisionFilter && !dateFilter">
+                            No analyses have been performed yet.
+                        </p>
+                        <div class="space-x-4">
+                            <button @click="clearFilters()" 
+                                    x-show="searchQuery || statusFilter || decisionFilter || dateFilter"
+                                    class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
+                                Clear Filters
+                            </button>
+                            <a href="/analysis" 
+                               class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-block">
+                                Start New Analysis
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pagination -->
+                <div x-show="filteredAnalyses.length > 0" class="bg-gray-50 px-6 py-3 border-t">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-700">
+                            Showing 
+                            <span x-text="((currentPage - 1) * itemsPerPage) + 1"></span>
+                            to 
+                            <span x-text="Math.min(currentPage * itemsPerPage, filteredAnalyses.length)"></span>
+                            of 
+                            <span x-text="filteredAnalyses.length"></span>
+                            results
+                        </div>
+                        
+                        <div class="flex space-x-2">
+                            <button @click="previousPage()" 
+                                    :disabled="currentPage === 1"
+                                    class="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-chevron-left"></i>
+                            </button>
+                            
+                            <template x-for="page in visiblePages" :key="page">
+                                <button @click="goToPage(page)" 
+                                        :class="page === currentPage ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'"
+                                        class="px-3 py-1 text-sm border rounded"
+                                        x-text="page"></button>
+                            </template>
+                            
+                            <button @click="nextPage()" 
+                                    :disabled="currentPage === totalPages"
+                                    class="px-3 py-1 text-sm border rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Analysis Details Modal -->
+    <div x-show="showDetailsModal" x-cloak 
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+         @click.away="closeDetailsModal()">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-screen overflow-y-auto">
+            <div class="p-6">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Analysis Details</h3>
+                    <button @click="closeDetailsModal()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <!-- Loading State -->
+                <div x-show="loadingDetails" class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <p class="text-gray-600">Loading details...</p>
+                </div>
+                
+                <!-- Analysis Details Content -->
+                <div x-show="!loadingDetails && selectedAnalysis" x-cloak class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Analysis ID</label>
+                            <div class="text-sm text-gray-900" x-text="selectedAnalysis?.id"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Image Name</label>
+                            <div class="text-sm text-gray-900" x-text="selectedAnalysis?.image_name"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Final Decision</label>
+                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                                  :class="selectedAnalysis?.final_decision === 'GOOD' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                  x-text="selectedAnalysis?.final_decision"></span>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Confidence Level</label>
+                            <div class="text-sm text-gray-900" x-text="selectedAnalysis?.confidence_level"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Anomaly Score</label>
+                            <div class="text-sm text-gray-900" x-text="selectedAnalysis?.anomaly_score?.toFixed(4)"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Processing Time</label>
+                            <div class="text-sm text-gray-900" x-text="selectedAnalysis?.processing_time?.toFixed(2) + 's'"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detected Defects -->
+                    <div x-show="selectedAnalysis?.detected_defects?.length > 0">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Detected Defects</label>
+                        <div class="space-y-2">
+                            <template x-for="defect in selectedAnalysis?.detected_defects" :key="defect">
+                                <div class="bg-red-50 border border-red-200 rounded px-3 py-2">
+                                    <span class="text-red-800 font-medium" x-text="defect.replace('_', ' ').toUpperCase()"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Defect Statistics -->
+                    <div x-show="selectedAnalysis?.defect_statistics?.length > 0">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Defect Statistics</label>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <template x-for="stat in selectedAnalysis?.defect_statistics" :key="stat.defect_type">
+                                <div class="mb-2 last:mb-0">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-medium" x-text="stat.defect_type.replace('_', ' ').title()"></span>
+                                        <span class="text-sm text-gray-600" x-text="stat.severity_level"></span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        Confidence: <span x-text="(stat.confidence * 100).toFixed(1)"></span>% | 
+                                        Area: <span x-text="stat.area_percentage.toFixed(2)"></span>% | 
+                                        Regions: <span x-text="stat.bbox_count"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Analysis Timestamp -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Analysis Date</label>
+                        <div class="text-sm text-gray-900" x-text="formatDate(selectedAnalysis?.analysis_date)"></div>
+                    </div>
+                </div>
+                
+                <!-- Modal Actions -->
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button @click="closeDetailsModal()" 
+                            class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition-colors">
+                        Close
+                    </button>
+                    <button x-show="selectedAnalysis" 
+                            @click="downloadAnalysisDetails(selectedAnalysis)"
+                            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-download mr-2"></i>Download
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alpine.js History Logic -->
+    <script>
+        function historyApp() {
+            return {
+                loading: true,
+                allAnalyses: [],
+                filteredAnalyses: [],
+                paginatedAnalyses: [],
+                
+                // Filters
+                searchQuery: '',
+                statusFilter: '',
+                decisionFilter: '',
+                dateFilter: '',
+                
+                // Pagination
+                currentPage: 1,
+                itemsPerPage: 10,
+                totalPages: 1,
+                
+                // Sorting
+                sortField: 'analysis_date',
+                sortDirection: 'desc',
+                
+                // Modal
+                showDetailsModal: false,
+                loadingDetails: false,
+                selectedAnalysis: null,
+
+                async init() {
+                    await this.loadHistory();
+                    this.filterAnalyses();
+                },
+
+                async loadHistory() {
+                    try {
+                        this.loading = true;
+                        const response = await fetch('/api/analysis-history?per_page=1000');
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.allAnalyses = data.data.analyses;
+                        }
+                    } catch (error) {
+                        console.error('Error loading history:', error);
+                        this.showNotification('Error loading analysis history', 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                filterAnalyses() {
+                    let filtered = [...this.allAnalyses];
+
+                    // Search filter
+                    if (this.searchQuery) {
+                        const query = this.searchQuery.toLowerCase();
+                        filtered = filtered.filter(analysis => 
+                            analysis.image.toLowerCase().includes(query)
+                        );
+                    }
+
+                    // Status filter
+                    if (this.statusFilter) {
+                        filtered = filtered.filter(analysis => 
+                            analysis.status === this.statusFilter
+                        );
+                    }
+
+                    // Decision filter
+                    if (this.decisionFilter) {
+                        filtered = filtered.filter(analysis => 
+                            analysis.decision === this.decisionFilter
+                        );
+                    }
+
+                    // Date filter
+                    if (this.dateFilter) {
+                        const now = new Date();
+                        filtered = filtered.filter(analysis => {
+                            const analysisDate = new Date(analysis.analysis_date);
+                            
+                            switch (this.dateFilter) {
+                                case 'today':
+                                    return analysisDate.toDateString() === now.toDateString();
+                                case 'week':
+                                    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                                    return analysisDate >= weekAgo;
+                                case 'month':
+                                    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                                    return analysisDate >= monthAgo;
+                                default:
+                                    return true;
+                            }
+                        });
+                    }
+
+                    this.filteredAnalyses = filtered;
+                    this.sortAnalyses();
+                    this.updatePagination();
+                },
+
+                sortBy(field) {
+                    if (this.sortField === field) {
+                        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortField = field;
+                        this.sortDirection = 'asc';
+                    }
+                    this.sortAnalyses();
+                    this.updatePagination();
+                },
+
+                sortAnalyses() {
+                    this.filteredAnalyses.sort((a, b) => {
+                        let aVal = a[this.sortField];
+                        let bVal = b[this.sortField];
+
+                        if (this.sortField === 'analysis_date') {
+                            aVal = new Date(aVal);
+                            bVal = new Date(bVal);
+                        }
+
+                        if (aVal < bVal) return this.sortDirection === 'asc' ? -1 : 1;
+                        if (aVal > bVal) return this.sortDirection === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                },
+
+                updatePagination() {
+                    this.totalPages = Math.ceil(this.filteredAnalyses.length / this.itemsPerPage);
+                    this.currentPage = Math.min(this.currentPage, this.totalPages);
+                    if (this.currentPage < 1) this.currentPage = 1;
+
+                    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+                    const endIndex = startIndex + this.itemsPerPage;
+                    this.paginatedAnalyses = this.filteredAnalyses.slice(startIndex, endIndex);
+                },
+
+                clearFilters() {
+                    this.searchQuery = '';
+                    this.statusFilter = '';
+                    this.decisionFilter = '';
+                    this.dateFilter = '';
+                    this.currentPage = 1;
+                    this.filterAnalyses();
+                },
+
+                previousPage() {
+                    if (this.currentPage > 1) {
+                        this.currentPage--;
+                        this.updatePagination();
+                    }
+                },
+
+                nextPage() {
+                    if (this.currentPage < this.totalPages) {
+                        this.currentPage++;
+                        this.updatePagination();
+                    }
+                },
+
+                goToPage(page) {
+                    this.currentPage = page;
+                    this.updatePagination();
+                },
+
+                get visiblePages() {
+                    const pages = [];
+                    const startPage = Math.max(1, this.currentPage - 2);
+                    const endPage = Math.min(this.totalPages, this.currentPage + 2);
+
+                    for (let i = startPage; i <= endPage; i++) {
+                        pages.push(i);
+                    }
+                    return pages;
+                },
+
+                async viewDetails(analysisId) {
+                    this.showDetailsModal = true;
+                    this.loadingDetails = true;
+                    
+                    try {
+                        const response = await fetch(`/api/analysis/${analysisId}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.selectedAnalysis = data.data;
+                        } else {
+                            this.showNotification('Error loading analysis details', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error loading details:', error);
+                        this.showNotification('Error loading analysis details', 'error');
+                    } finally {
+                        this.loadingDetails = false;
+                    }
+                },
+
+                closeDetailsModal() {
+                    this.showDetailsModal = false;
+                    this.selectedAnalysis = null;
+                },
+
+                downloadAnalysis(analysis) {
+                    this.downloadJSON(analysis, `analysis_${analysis.id}.json`);
+                },
+
+                downloadAnalysisDetails(analysis) {
+                    this.downloadJSON(analysis, `detailed_analysis_${analysis.id}.json`);
+                    this.closeDetailsModal();
+                },
+
+                async deleteAnalysis(analysisId) {
+                    if (!confirm('Are you sure you want to delete this analysis? This action cannot be undone.')) {
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/api/delete-analysis/${analysisId}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (response.ok) {
+                            this.showNotification('Analysis deleted successfully', 'success');
+                            await this.loadHistory();
+                            this.filterAnalyses();
+                        } else {
+                            const error = await response.json();
+                            this.showNotification(`Error deleting analysis: ${error.error}`, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting analysis:', error);
+                        this.showNotification('Error deleting analysis', 'error');
+                    }
+                },
+
+                async exportHistory() {
+                    try {
+                        const dataToExport = {
+                            export_date: new Date().toISOString(),
+                            total_analyses: this.allAnalyses.length,
+                            analyses: this.allAnalyses
+                        };
+                        
+                        this.downloadJSON(dataToExport, `defect_detection_history_${new Date().toISOString().split('T')[0]}.json`);
+                        this.showNotification('History exported successfully', 'success');
+                    } catch (error) {
+                        console.error('Error exporting history:', error);
+                        this.showNotification('Error exporting history', 'error');
+                    }
+                },
+
+                async refreshHistory() {
+                    await this.loadHistory();
+                    this.filterAnalyses();
+                    this.showNotification('History refreshed', 'success');
+                },
+
+                formatDate(dateString) {
+                    if (!dateString) return '';
+                    return new Date(dateString).toLocaleString();
+                },
+
+                downloadJSON(data, filename) {
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                },
+
+                showNotification(message, type = 'info') {
+                    const notification = document.createElement('div');
+                    notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+                        type === 'error' ? 'bg-red-500 text-white' : 
+                        type === 'success' ? 'bg-green-500 text-white' : 
+                        'bg-blue-500 text-white'
+                    }`;
+                    notification.innerHTML = `
+                        <div class="flex items-center">
+                            <i class="fas ${
+                                type === 'error' ? 'fa-exclamation-circle' : 
+                                type === 'success' ? 'fa-check-circle' : 
+                                'fa-info-circle'
+                            } mr-2"></i>
+                            <span>${message}</span>
+                        </div>
+                    `;
+                    document.body.appendChild(notification);
+                    
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 5000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

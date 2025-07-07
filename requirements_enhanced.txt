@@ -1,0 +1,4 @@
+
+# Additional requirements for enhanced features
+reportlab>=3.6.0
+psutil>=5.9.0

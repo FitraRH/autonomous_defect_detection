@@ -1,4 +1,3 @@
-# models/__init__.py
 """
 Models package for Unified Defect Detection System
 """

@@ -9,6 +9,7 @@ from models.model_loader import ModelLoader, auto_load_models, load_custom_model
 from core.detection import DetectionCore
 from processors.image_processor import ImageProcessor
 from processors.video_processor import VideoProcessor
+from processors.realtime_processor import RealTimeProcessor
 from config import *
 
 
@@ -42,6 +43,7 @@ class UnifiedDefectDetector:
         self.detection_core = None
         self.image_processor = None
         self.video_processor = None
+        self.realtime_processor = None
         
         print(f"Initializing Unified Defect Detection System on {self.device}")
         
@@ -77,13 +79,26 @@ class UnifiedDefectDetector:
         return success
     
     def _initialize_processors(self):
-        """Initialize processing components"""
+        """Initialize processing components including real-time processor"""
         anomalib_model, hrnet_model = self.model_loader.get_models()
         
         if anomalib_model and hrnet_model:
             self.detection_core = DetectionCore(anomalib_model, hrnet_model, self.device)
             self.image_processor = ImageProcessor(self.detection_core)
             self.video_processor = VideoProcessor(self.detection_core)
+            
+            # Initialize real-time processor
+            try:
+                performance_tracker = getattr(self, 'performance_tracker', None)
+                self.realtime_processor = RealTimeProcessor(
+                    self.detection_core, 
+                    performance_tracker
+                )
+                print("✅ Real-time processor initialized")
+            except Exception as e:
+                print(f"⚠️ Real-time processor initialization failed: {e}")
+                self.realtime_processor = None
+            
             return True
         return False
     
@@ -159,6 +174,116 @@ class UnifiedDefectDetector:
         
         return self.video_processor.process_camera_realtime(camera_id, output_dir)
     
+    # Real-Time Processing Methods
+    def start_realtime_session(self):
+        """
+        Start a new real-time detection session
+        
+        Returns:
+            bool: Success status
+        """
+        if not self.is_ready():
+            raise RuntimeError("System not ready. Load models first.")
+        
+        if not self.realtime_processor:
+            raise RuntimeError("Real-time processor not available.")
+        
+        return self.realtime_processor.start_session()
+
+    def stop_realtime_session(self):
+        """
+        Stop current real-time detection session
+        
+        Returns:
+            dict: Session report
+        """
+        if not self.realtime_processor:
+            raise RuntimeError("Real-time processor not available.")
+        
+        return self.realtime_processor.stop_session()
+
+    def process_realtime_frame(self, frame_data, auto_capture_defects=True):
+        """
+        Process single frame from real-time camera feed
+        
+        Args:
+            frame_data: Base64 encoded image data or numpy array
+            auto_capture_defects: Automatically capture screenshots of defects
+            
+        Returns:
+            dict: Frame processing result
+        """
+        if not self.is_ready():
+            raise RuntimeError("System not ready. Load models first.")
+        
+        if not self.realtime_processor:
+            raise RuntimeError("Real-time processor not available.")
+        
+        return self.realtime_processor.process_frame(frame_data, auto_capture_defects)
+
+    def capture_realtime_screenshot(self, frame_data, detection_result=None):
+        """
+        Manually capture screenshot from real-time feed
+        
+        Args:
+            frame_data: Base64 encoded image data
+            detection_result: Optional detection result to associate
+            
+        Returns:
+            dict: Screenshot information
+        """
+        if not self.realtime_processor:
+            raise RuntimeError("Real-time processor not available.")
+        
+        return self.realtime_processor.capture_manual_screenshot(frame_data, detection_result)
+
+    def get_realtime_session_stats(self):
+        """
+        Get current real-time session statistics
+        
+        Returns:
+            dict: Session statistics
+        """
+        if not self.realtime_processor:
+            return {'error': 'Real-time processor not available'}
+        
+        return self.realtime_processor.get_session_statistics()
+
+    def is_realtime_session_active(self):
+        """
+        Check if real-time session is currently active
+        
+        Returns:
+            bool: Session active status
+        """
+        return (self.realtime_processor and 
+                self.realtime_processor.session_active)
+
+    def get_realtime_session_history(self, limit=20):
+        """
+        Get real-time session history
+        
+        Args:
+            limit: Maximum number of sessions to return
+            
+        Returns:
+            list: Session history records
+        """
+        if not self.realtime_processor:
+            return []
+        
+        return self.realtime_processor.get_session_history(limit)
+
+    def cleanup_realtime_data(self, days_to_keep=30):
+        """
+        Clean up old real-time data and files
+        
+        Args:
+            days_to_keep: Number of days of data to keep
+        """
+        if self.realtime_processor:
+            self.realtime_processor.cleanup_old_sessions(days_to_keep)
+    
     # Direct Detection Methods (for advanced users)
     def detect_anomaly(self, image_path):
         """
@@ -193,8 +318,8 @@ class UnifiedDefectDetector:
     
     # Utility Methods
     def get_system_info(self):
-        """Get system information and status"""
-        return {
+        """Get system information and status including real-time capabilities"""
+        base_info = {
             'device': self.device,
             'models_loaded': self.model_loader.is_ready(),
             'system_ready': self.is_ready(),
@@ -202,6 +327,20 @@ class UnifiedDefectDetector:
             'defect_threshold': DEFECT_CONFIDENCE_THRESHOLD,
             'supported_classes': SPECIFIC_DEFECT_CLASSES
         }
+        
+        # Add real-time capabilities
+        base_info.update({
+            'realtime_available': self.realtime_processor is not None,
+            'realtime_session_active': self.is_realtime_session_active(),
+            'realtime_features': {
+                'live_detection': True,
+                'auto_screenshot': True,
+                'session_reports': True,
+                'performance_tracking': hasattr(self, 'performance_tracker') and self.performance_tracker is not None
+            }
+        })
+        
+        return base_info
     
     def update_thresholds(self, anomaly_threshold=None, defect_threshold=None):
         """
@@ -241,6 +380,32 @@ def create_detector(anomalib_path=None, hrnet_path=None, device=None):
         device=device,
         auto_load=True
     )
+
+def create_realtime_detector(anomalib_path=None, hrnet_path=None, device=None):
+    """
+    Quick real-time detector creation with automatic model loading
+    
+    Args:
+        anomalib_path: Path to Anomalib model (optional, uses config if None)
+        hrnet_path: Path to HRNet model (optional, uses config if None)
+        device: Device to use (optional, uses config if None)
+        
+    Returns:
+        UnifiedDefectDetector: Ready-to-use detector instance with real-time capabilities
+    """
+    detector = UnifiedDefectDetector(
+        anomalib_model_path=anomalib_path,
+        hrnet_model_path=hrnet_path,
+        device=device,
+        auto_load=True
+    )
+    
+    if detector.realtime_processor:
+        print("✅ Real-time detector ready with live processing capabilities")
+    else:
+        print("⚠️ Real-time detector created but real-time processor unavailable")
+    
+    return detector
 
 
 def quick_detect(image_path, anomalib_path=None, hrnet_path=None):
@@ -302,14 +467,39 @@ def demo_batch_processing(input_folder):
     else:
         print("Batch processing failed")
 
+def demo_realtime_processing():
+    """Demo function for real-time processing capabilities"""
+    print("DEMO: Real-Time Processing Capabilities")
+    print("=" * 50)
+    
+    detector = create_realtime_detector()
+    
+    if detector.realtime_processor:
+        print("Real-time processor available!")
+        print("\nAvailable real-time methods:")
+        print("   - detector.start_realtime_session()")
+        print("   - detector.process_realtime_frame(frame_data)")
+        print("   - detector.capture_realtime_screenshot(frame_data)")
+        print("   - detector.get_realtime_session_stats()")
+        print("   - detector.stop_realtime_session()")
+        print("\nReal-time features:")
+        print("   ✅ Live camera feed processing")
+        print("   ✅ Real-time bounding box detection")
+        print("   ✅ Automatic defect screenshot capture")
+        print("   ✅ Session statistics and reporting")
+        print("   ✅ Performance tracking integration")
+        print("   ✅ Database storage for session data")
+    else:
+        print("Real-time processor not available. Check model loading.")
+
 
 if __name__ == "__main__":
     # Example usage
-    print("Unified Defect Detection System - Modular Backend")
-    print("=" * 70)
+    print("Unified Defect Detection System - Enhanced with Real-Time Processing")
+    print("=" * 80)
     
     # Initialize detector
-    detector = create_detector()
+    detector = create_realtime_detector()
     
     if detector.is_ready():
         print("System ready for processing!")
@@ -318,8 +508,18 @@ if __name__ == "__main__":
         print("   - detector.process_batch(folder_path)")
         print("   - detector.process_video(video_path)")
         print("   - detector.start_camera()")
-        print("   - quick_detect(image_path)  # Convenience function")
+        
+        if detector.realtime_processor:
+            print("\n🚀 Real-Time Processing Available:")
+            print("   - detector.start_realtime_session()")
+            print("   - detector.process_realtime_frame(frame_data)")
+            print("   - detector.capture_realtime_screenshot(frame_data)")
+            print("   - detector.get_realtime_session_stats()")
+            print("   - detector.stop_realtime_session()")
+            print("\n   📱 Web Interface: http://localhost:5000/realtime")
+        
+        print("\n   - quick_detect(image_path)  # Convenience function")
     else:
         print("System not ready. Check model paths in config.py")
     
-    print("\nSystem is now modular and ready for integration!")
+    print("\nSystem is now enhanced with real-time capabilities and ready for integration!")
