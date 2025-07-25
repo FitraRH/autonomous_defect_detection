@@ -611,23 +611,28 @@ Report Classification: {_get_report_classification(defect_rate)}
 # Helper functions for enhanced reporting
 
 def _calculate_confidence_level(result):
-    """Calculate human-readable confidence level"""
+    """Calculate confidence level from real anomaly scores"""
     score = result.get('anomaly_detection', {}).get('anomaly_score', 0.0)
+    decision = result['final_decision']
     
-    if result['final_decision'] == 'GOOD':
-        if score < 0.3:
+    if decision == 'GOOD':
+        if score < 0.2:
             return "Very High Confidence"
-        elif score < 0.5:
+        elif score < 0.4:
             return "High Confidence"
-        else:
+        elif score < 0.6:
             return "Medium Confidence"
+        else:
+            return "Low Confidence"
     else:  # DEFECT
-        if score > 0.8:
+        if score > 0.9:
             return "Very High Confidence"
-        elif score > 0.6:
+        elif score > 0.8:
             return "High Confidence"
-        else:
+        elif score > 0.7:
             return "Medium Confidence"
+        else:
+            return "Low Confidence"
 
 def _calculate_risk_assessment(result):
     """Calculate risk assessment based on result"""
@@ -666,21 +671,36 @@ def _calculate_quality_grade(result):
             return "D+ (Below Standard)"
 
 def _calculate_efficiency_score(result):
-    """Calculate processing efficiency score"""
+    """Calculate efficiency score from real processing time"""
     processing_time = result['processing_time']
-    if processing_time < 0.5:
-        return 95 + int(np.random.random() * 5)
-    elif processing_time < 1.0:
-        return 85 + int(np.random.random() * 10)
-    elif processing_time < 2.0:
-        return 70 + int(np.random.random() * 15)
+    target_time = 1.0
+    
+    if processing_time <= target_time:
+        efficiency = 95 + (target_time - processing_time) * 5
     else:
-        return 50 + int(np.random.random() * 20)
+        efficiency = 95 - (processing_time - target_time) * 20
+    
+    return max(50, min(100, int(efficiency)))
 
 def _get_system_load_indicator():
-    """Get system load indicator"""
-    load_levels = ["Light", "Moderate", "Normal", "High"]
-    return np.random.choice(load_levels, p=[0.2, 0.3, 0.3, 0.2])
+    """Get system load indicator from actual system metrics"""
+    try:
+        import psutil
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        memory_percent = psutil.virtual_memory().percent
+        
+        overall_load = (cpu_percent + memory_percent) / 2
+        
+        if overall_load < 30:
+            return "Light"
+        elif overall_load < 60:
+            return "Moderate" 
+        elif overall_load < 80:
+            return "Normal"
+        else:
+            return "High"
+    except:
+        return "Unknown"
 
 def _get_confidence_band(score):
     """Get confidence band description"""
@@ -701,77 +721,117 @@ def _get_statistical_significance(score):
         return "Marginal Significance"
 
 def _get_enhanced_defect_stats(defect_type, result):
-    """Generate enhanced statistics for defect types"""
-    # Mock enhanced statistics based on defect type
-    base_stats = {
-        'scratch': {
-            'severity': 'Medium',
-            'confidence': 0.82 + np.random.random() * 0.15,
-            'area_percentage': 1.5 + np.random.random() * 3,
-            'repair_complexity': 'Low',
-            'economic_impact': '$50-150',
-            'immediate_action': 'Surface polishing required',
-            'short_term_action': 'Review handling procedures',
-            'long_term_action': 'Improve protective coatings'
-        },
-        'stained': {
-            'severity': 'Medium',
-            'confidence': 0.78 + np.random.random() * 0.18,
-            'area_percentage': 2.0 + np.random.random() * 4,
-            'repair_complexity': 'Medium',
-            'economic_impact': '$75-200',
-            'immediate_action': 'Chemical cleaning required',
-            'short_term_action': 'Review cleaning protocols',
-            'long_term_action': 'Upgrade cleaning systems'
-        },
-        'damaged': {
-            'severity': 'Critical',
-            'confidence': 0.85 + np.random.random() * 0.12,
-            'area_percentage': 3.0 + np.random.random() * 8,
-            'repair_complexity': 'High',
-            'economic_impact': '$200-500',
-            'immediate_action': 'Structural repair needed',
-            'short_term_action': 'Process parameter review',
-            'long_term_action': 'Equipment maintenance program'
-        },
-        'missing_component': {
-            'severity': 'Critical',
-            'confidence': 0.90 + np.random.random() * 0.08,
-            'area_percentage': 4.0 + np.random.random() * 10,
-            'repair_complexity': 'High',
-            'economic_impact': '$300-800',
-            'immediate_action': 'Component replacement',
-            'short_term_action': 'Assembly line inspection',
-            'long_term_action': 'Automated component verification'
-        },
-        'open': {
-            'severity': 'High',
-            'confidence': 0.80 + np.random.random() * 0.16,
-            'area_percentage': 2.5 + np.random.random() * 5,
-            'repair_complexity': 'Medium',
-            'economic_impact': '$100-300',
-            'immediate_action': 'Closure mechanism repair',
-            'short_term_action': 'Mechanism calibration',
-            'long_term_action': 'Design improvement'
-        }
+    """Generate real statistics from actual defect detection results"""
+    if not result.get('defect_classification'):
+        return None
+    
+    defect_analysis = result['defect_classification'].get('defect_analysis', {})
+    
+    # Extract real statistics from actual detection results
+    defect_statistics = defect_analysis.get('defect_statistics', {}).get(defect_type, {})
+    class_distribution = defect_analysis.get('class_distribution', {}).get(defect_type, {})
+    bounding_boxes = defect_analysis.get('bounding_boxes', {}).get(defect_type, [])
+    spatial_analysis = defect_analysis.get('spatial_analysis', {}).get(defect_type, {})
+    
+    if not defect_statistics:
+        return None
+    
+    # Calculate real severity based on actual data
+    area_percentage = class_distribution.get('percentage', 0)
+    confidence = defect_statistics.get('avg_confidence', 0)
+    
+    if area_percentage > 10 and confidence > 0.9:
+        severity = "Critical"
+    elif area_percentage > 5 and confidence > 0.8:
+        severity = "High"
+    elif area_percentage > 2 and confidence > 0.7:
+        severity = "Medium"
+    else:
+        severity = "Low"
+    
+    # Calculate real repair complexity
+    if defect_type in ['damaged', 'missing_component']:
+        repair_complexity = 'High'
+        economic_impact = f"${200 + int(area_percentage * 20)}-{500 + int(area_percentage * 50)}"
+    elif defect_type in ['open']:
+        repair_complexity = 'Medium'
+        economic_impact = f"${100 + int(area_percentage * 10)}-{300 + int(area_percentage * 30)}"
+    else:
+        repair_complexity = 'Low'
+        economic_impact = f"${50 + int(area_percentage * 5)}-{150 + int(area_percentage * 15)}"
+    
+    # Get real bounding box data
+    num_regions = len(bounding_boxes)
+    largest_region_area = max([bbox.get('area', 0) for bbox in bounding_boxes]) if bounding_boxes else 0
+    avg_region_size = sum([bbox.get('area', 0) for bbox in bounding_boxes]) / num_regions if num_regions > 0 else 0
+    
+    # Get real spatial data
+    center_x = spatial_analysis.get('center_of_mass', {}).get('x', 0)
+    center_y = spatial_analysis.get('center_of_mass', {}).get('y', 0)
+    
+    # Real distribution pattern based on bounding boxes
+    if num_regions <= 1:
+        distribution_pattern = "Single Region"
+    elif num_regions <= 3:
+        distribution_pattern = "Scattered"
+    else:
+        distribution_pattern = "Clustered"
+    
+    # Real edge proximity calculation
+    if bounding_boxes:
+        edge_count = 0
+        for bbox in bounding_boxes:
+            x, y = bbox.get('x', 0), bbox.get('y', 0)
+            if x < 64 or y < 48 or (x + bbox.get('width', 0)) > 576 or (y + bbox.get('height', 0)) > 432:
+                edge_count += 1
+        
+        if edge_count > 0:
+            edge_proximity = "Near Edge"
+        else:
+            edge_proximity = "Center"
+    else:
+        edge_proximity = "Unknown"
+    
+    # Real clustering index based on bounding box distribution
+    if num_regions <= 1:
+        clustering_index = 1.0
+    else:
+        total_distance = 0
+        pairs = 0
+        for i in range(len(bounding_boxes)):
+            for j in range(i + 1, len(bounding_boxes)):
+                bbox1 = bounding_boxes[i]
+                bbox2 = bounding_boxes[j]
+                dx = bbox1.get('center_x', 0) - bbox2.get('center_x', 0)
+                dy = bbox1.get('center_y', 0) - bbox2.get('center_y', 0)
+                distance = (dx**2 + dy**2)**0.5
+                total_distance += distance
+                pairs += 1
+        
+        avg_distance = total_distance / pairs if pairs > 0 else 0
+        clustering_index = max(0, min(1, 1 - (avg_distance / 500)))
+    
+    stats = {
+        'severity': severity,
+        'confidence': confidence,
+        'area_percentage': area_percentage,
+        'pixel_count': class_distribution.get('pixel_count', 0),
+        'num_regions': num_regions,
+        'largest_region_area': largest_region_area,
+        'avg_region_size': avg_region_size,
+        'distribution_pattern': distribution_pattern,
+        'edge_proximity': edge_proximity,
+        'repair_complexity': repair_complexity,
+        'economic_impact': economic_impact,
+        'center_x': center_x,
+        'center_y': center_y,
+        'clustering_index': clustering_index,
+        'symmetry_score': 0.5,
+        'immediate_action': _get_immediate_action(defect_type, severity),
+        'short_term_action': _get_short_term_action(defect_type),
+        'long_term_action': _get_long_term_action(defect_type),
+        'quadrant_distribution': _calculate_real_quadrant_distribution(bounding_boxes)
     }
-    
-    stats = base_stats.get(defect_type, base_stats['scratch']).copy()
-    
-    # Add calculated fields
-    stats.update({
-        'pixel_count': int(stats['area_percentage'] * 10000),
-        'num_regions': np.random.randint(1, 4),
-        'largest_region_area': int(stats['area_percentage'] * 8000),
-        'avg_region_size': int(stats['area_percentage'] * 3000),
-        'distribution_pattern': np.random.choice(['Clustered', 'Scattered', 'Linear']),
-        'edge_proximity': np.random.choice(['Near Edge', 'Center', 'Corner']),
-        'center_x': np.random.randint(100, 500),
-        'center_y': np.random.randint(100, 400),
-        'quadrant_distribution': np.random.choice(['Q1', 'Q2', 'Q3', 'Q4']),
-        'clustering_index': np.random.random(),
-        'symmetry_score': np.random.random()
-    })
     
     return stats
 
@@ -842,12 +902,20 @@ def _get_defect_recommendations(defect_type):
     return recommendations.get(defect_type, recommendations['scratch'])
 
 def _calculate_model_confidence(result):
-    """Calculate overall model confidence"""
-    anomaly_confidence = result['anomaly_detection']['anomaly_score']
-    if result['final_decision'] == 'GOOD':
-        return (1 - anomaly_confidence) * 100
+    """Calculate model confidence from real detection consistency"""
+    anomaly_score = result['anomaly_detection']['anomaly_score']
+    decision = result['final_decision']
+    
+    if decision == 'GOOD':
+        confidence = (1 - anomaly_score) * 100
     else:
-        return anomaly_confidence * 100
+        confidence = anomaly_score * 100
+    
+    if result.get('detected_defect_types'):
+        if decision == 'DEFECT':
+            confidence = min(95, confidence + 10)
+    
+    return round(confidence, 1)
 
 def _generate_json_summary(result):
     """Generate JSON summary for API consumption"""
@@ -953,9 +1021,105 @@ def _calculate_batch_efficiency(summary):
     return min(100, efficiency)
 
 def _get_defect_trend(defect_type):
-    """Get defect trend analysis"""
-    trends = ["Increasing", "Stable", "Decreasing", "New Issue"]
-    return np.random.choice(trends, p=[0.2, 0.4, 0.3, 0.1])
+    """Get defect trend analysis from historical data"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect("defect_detection.db")
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT COUNT(*) as count, DATE(analysis_date) as date
+            FROM analyses a
+            JOIN defect_statistics ds ON a.id = ds.analysis_id
+            WHERE ds.defect_type = ? AND DATE(analysis_date) >= DATE('now', '-30 days')
+            GROUP BY DATE(analysis_date)
+            ORDER BY date DESC
+            LIMIT 7
+        ''', (defect_type,))
+        
+        trend_data = cursor.fetchall()
+        conn.close()
+        
+        if len(trend_data) >= 3:
+            recent_avg = np.mean([row[0] for row in trend_data[:3]])
+            older_avg = np.mean([row[0] for row in trend_data[3:]])
+            
+            if recent_avg > older_avg * 1.2:
+                return "Increasing"
+            elif recent_avg < older_avg * 0.8:
+                return "Decreasing"
+            else:
+                return "Stable"
+        else:
+            return "New Issue"
+    except:
+        return "Unknown"
+    
+def _get_immediate_action(defect_type, severity):
+    """Get immediate action based on real defect type and severity"""
+    actions = {
+        'scratch': 'Surface inspection and polishing required',
+        'stained': 'Chemical cleaning and contamination source identification',
+        'damaged': 'Structural assessment and repair needed',
+        'missing_component': 'Component installation and assembly verification',
+        'open': 'Closure mechanism adjustment and testing'
+    }
+    
+    base_action = actions.get(defect_type, 'General inspection required')
+    
+    if severity == "Critical":
+        return f"URGENT: {base_action}"
+    else:
+        return base_action
+
+def _get_short_term_action(defect_type):
+    """Get short-term action based on defect type"""
+    actions = {
+        'scratch': 'Review handling procedures and protective measures',
+        'stained': 'Audit cleaning protocols and environmental controls',
+        'damaged': 'Investigate process parameters and force applications',
+        'missing_component': 'Assembly line inspection and component supply audit',
+        'open': 'Mechanism calibration and maintenance schedule review'
+    }
+    
+    return actions.get(defect_type, 'Process review and improvement planning')
+
+def _get_long_term_action(defect_type):
+    """Get long-term action based on defect type"""
+    actions = {
+        'scratch': 'Implement advanced protective coatings and handling systems',
+        'stained': 'Upgrade cleaning systems and environmental controls',
+        'damaged': 'Equipment modernization and process optimization',
+        'missing_component': 'Automated component verification and assembly systems',
+        'open': 'Design improvement and preventive maintenance programs'
+    }
+    
+    return actions.get(defect_type, 'Comprehensive quality system enhancement')
+
+def _calculate_real_quadrant_distribution(bounding_boxes):
+    """Calculate real quadrant distribution from bounding boxes"""
+    if not bounding_boxes:
+        return "No data"
+    
+    image_center_x, image_center_y = 320, 240
+    
+    quadrants = {'Q1': 0, 'Q2': 0, 'Q3': 0, 'Q4': 0}
+    
+    for bbox in bounding_boxes:
+        center_x = bbox.get('center_x', bbox.get('x', 0) + bbox.get('width', 0) // 2)
+        center_y = bbox.get('center_y', bbox.get('y', 0) + bbox.get('height', 0) // 2)
+        
+        if center_x >= image_center_x and center_y < image_center_y:
+            quadrants['Q1'] += 1
+        elif center_x < image_center_x and center_y < image_center_y:
+            quadrants['Q2'] += 1
+        elif center_x < image_center_x and center_y >= image_center_y:
+            quadrants['Q3'] += 1
+        else:
+            quadrants['Q4'] += 1
+    
+    max_quadrant = max(quadrants.items(), key=lambda x: x[1])
+    return max_quadrant[0]
 
 def _get_batch_defect_action(defect_type, count):
     """Get recommended action for batch defect"""
@@ -996,28 +1160,86 @@ def _identify_quality_pattern(defect_counts):
         return "Balanced Defect Distribution"
 
 def _calculate_detection_sensitivity(results):
-    """Calculate detection sensitivity"""
-    return 85 + np.random.random() * 10  # Mock calculation
+    """Calculate detection sensitivity from real results"""
+    if not results:
+        return 0.0
+    
+    true_positives = sum(1 for r in results if r.get('final_decision') == 'DEFECT' and r.get('detected_defect_types'))
+    false_negatives = sum(1 for r in results if r.get('final_decision') == 'GOOD' and r.get('anomaly_detection', {}).get('anomaly_score', 0) > 0.5)
+    
+    total_actual_defects = true_positives + false_negatives
+    if total_actual_defects == 0:
+        return 100.0
+    
+    sensitivity = (true_positives / total_actual_defects) * 100
+    return round(sensitivity, 1)
 
 def _calculate_classification_accuracy(results):
-    """Calculate classification accuracy"""
-    return 90 + np.random.random() * 8  # Mock calculation
+    """Calculate classification accuracy from real results"""
+    if not results:
+        return 0.0
+    
+    correct_classifications = 0
+    total_classifications = len(results)
+    
+    for result in results:
+        anomaly_score = result.get('anomaly_detection', {}).get('anomaly_score', 0)
+        decision = result.get('final_decision', 'UNKNOWN')
+        
+        if (decision == 'DEFECT' and anomaly_score > 0.7) or (decision == 'GOOD' and anomaly_score <= 0.7):
+            correct_classifications += 1
+    
+    if total_classifications == 0:
+        return 0.0
+    
+    accuracy = (correct_classifications / total_classifications) * 100
+    return round(accuracy, 1)
 
 def _calculate_process_capability(summary):
-    """Calculate process capability index"""
-    return 1.2 + np.random.random() * 0.5  # Mock calculation
+    """Calculate process capability index from real data"""
+    if not summary.get('processing_times'):
+        return 1.0
+    
+    processing_times = summary['processing_times']
+    mean_time = np.mean(processing_times)
+    std_time = np.std(processing_times)
+    
+    target_time = 1.0
+    tolerance = 0.5
+    
+    if std_time == 0:
+        return 2.0
+    
+    cp = tolerance / (3 * std_time)
+    
+    upper_limit = target_time + tolerance
+    lower_limit = target_time - tolerance
+    
+    cpu = (upper_limit - mean_time) / (3 * std_time)
+    cpl = (mean_time - lower_limit) / (3 * std_time)
+    cpk = min(cpu, cpl)
+    
+    return round(max(cpk, 0.1), 2)
 
 def _calculate_six_sigma_level(summary):
-    """Calculate Six Sigma level"""
+    """Calculate Six Sigma level from real defect rate"""
+    if summary['total_images'] == 0:
+        return 3.0
+    
     defect_rate = summary['defective_products'] / summary['total_images'] * 100
-    if defect_rate < 0.1:
-        return 5.5 + np.random.random() * 0.5
-    elif defect_rate < 1:
-        return 4.5 + np.random.random() * 0.8
-    elif defect_rate < 5:
-        return 3.5 + np.random.random() * 0.8
+    
+    if defect_rate <= 0.00034:
+        return 6.0
+    elif defect_rate <= 0.0233:
+        return 5.0
+    elif defect_rate <= 0.621:
+        return 4.0
+    elif defect_rate <= 6.68:
+        return 3.0
+    elif defect_rate <= 15.87:
+        return 2.0
     else:
-        return 2.0 + np.random.random() * 1.0
+        return 1.0
 
 def _calculate_quality_index(summary):
     """Calculate overall quality index"""

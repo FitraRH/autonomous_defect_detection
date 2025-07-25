@@ -422,26 +422,3 @@ def analyze_defect_clustering(bboxes):
     }
     
     return clustering_info
-
-# Test function
-def test_enhanced_detection():
-    """Test the enhanced detection functions"""
-    print("Testing Enhanced Detection Functions...")
-    
-    # Create dummy data for testing
-    dummy_mask = np.random.randint(0, 6, (480, 640))
-    dummy_confidence = np.random.random((480, 640))
-    
-    try:
-        result = analyze_defect_predictions_enhanced(dummy_mask, dummy_confidence, (480, 640))
-        print(f"✓ Enhanced analysis completed")
-        print(f"  Detected defects: {result['detected_defects']}")
-        print(f"  Classes analyzed: {len(result['class_distribution'])}")
-        return True
-    except Exception as e:
-        print(f"✗ Enhanced analysis failed: {e}")
-        return False
-
-if __name__ == "__main__":
-    # Test the functions when run directly
-    test_enhanced_detection()

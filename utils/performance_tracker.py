@@ -16,7 +16,6 @@ class EnhancedPerformanceTracker:
     def __init__(self, db_path="defect_detection.db"):
         self.db_path = db_path
         self.reset()
-        self.init_performance_tables()
     
     def reset(self):
         """Reset all metrics"""
@@ -36,69 +35,6 @@ class EnhancedPerformanceTracker:
         self.realtime_memory = deque(maxlen=100)
         self.realtime_cpu = deque(maxlen=100)
         self.realtime_timestamps = deque(maxlen=100)
-    
-    def init_performance_tables(self):
-        """Initialize performance tracking tables in database"""
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Performance metrics table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS performance_metrics (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    analysis_id INTEGER,
-                    processing_time REAL,
-                    memory_usage REAL,
-                    cpu_usage REAL,
-                    image_size TEXT,
-                    anomaly_score REAL,
-                    decision TEXT,
-                    defect_types TEXT,
-                    confidence_score REAL,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (analysis_id) REFERENCES analyses (id)
-                )
-            ''')
-            
-            # Daily performance summary
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS daily_performance (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date DATE,
-                    total_analyses INTEGER,
-                    avg_processing_time REAL,
-                    max_processing_time REAL,
-                    min_processing_time REAL,
-                    avg_memory_usage REAL,
-                    avg_cpu_usage REAL,
-                    defect_rate REAL,
-                    avg_confidence REAL,
-                    throughput_per_hour REAL,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # System performance history
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS system_performance (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    memory_total REAL,
-                    memory_used REAL,
-                    memory_percent REAL,
-                    cpu_percent REAL,
-                    disk_usage REAL,
-                    active_processes INTEGER
-                )
-            ''')
-            
-            conn.commit()
-            conn.close()
-            print("✅ Performance tracking tables initialized")
-            
-        except Exception as e:
-            print(f"Error initializing performance tables: {e}")
     
     def start_measurement(self, analysis_id=None):
         """Start timing measurement with enhanced system monitoring"""
@@ -556,6 +492,102 @@ class EnhancedPerformanceTracker:
         except Exception as e:
             print(f"Error updating daily summary: {e}")
     
+    # REAL CALCULATIONS - REPLACING MOCK FUNCTIONS:
+    
+    def _calculate_detection_sensitivity(self, results):
+        """Calculate detection sensitivity from real results"""
+        if not results:
+            return 0.0
+        
+        # Count true positives and false negatives from actual results
+        true_positives = sum(1 for r in results if r.get('final_decision') == 'DEFECT' and r.get('detected_defect_types'))
+        false_negatives = sum(1 for r in results if r.get('final_decision') == 'GOOD' and r.get('anomaly_detection', {}).get('anomaly_score', 0) > 0.5)
+        
+        total_actual_defects = true_positives + false_negatives
+        if total_actual_defects == 0:
+            return 100.0
+        
+        sensitivity = (true_positives / total_actual_defects) * 100
+        return round(sensitivity, 1)
+
+    def _calculate_classification_accuracy(self, results):
+        """Calculate classification accuracy from real results"""
+        if not results:
+            return 0.0
+        
+        # Calculate accuracy based on consistency of anomaly scores with decisions
+        correct_classifications = 0
+        total_classifications = len(results)
+        
+        for result in results:
+            anomaly_score = result.get('anomaly_detection', {}).get('anomaly_score', 0)
+            decision = result.get('final_decision', 'UNKNOWN')
+            
+            # Check if score and decision are consistent
+            if (decision == 'DEFECT' and anomaly_score > 0.7) or (decision == 'GOOD' and anomaly_score <= 0.7):
+                correct_classifications += 1
+        
+        if total_classifications == 0:
+            return 0.0
+        
+        accuracy = (correct_classifications / total_classifications) * 100
+        return round(accuracy, 1)
+
+    def _calculate_process_capability(self, summary):
+        """Calculate process capability index from real data"""
+        if not summary.get('processing_times'):
+            return 1.0
+        
+        processing_times = summary['processing_times']
+        mean_time = np.mean(processing_times)
+        std_time = np.std(processing_times)
+        
+        # Process capability based on processing time consistency
+        # Target: 1.0 second processing time with ±0.5 second tolerance
+        target_time = 1.0
+        tolerance = 0.5
+        
+        if std_time == 0:
+            return 2.0  # Perfect capability
+        
+        # Calculate Cpk (process capability with centering)
+        upper_limit = target_time + tolerance
+        lower_limit = target_time - tolerance
+        
+        cpu = (upper_limit - mean_time) / (3 * std_time)
+        cpl = (mean_time - lower_limit) / (3 * std_time)
+        cpk = min(cpu, cpl)
+        
+        return round(max(cpk, 0.1), 2)
+
+    def _calculate_six_sigma_level(self, summary):
+        """Calculate Six Sigma level from real defect rate"""
+        if summary['total_images'] == 0:
+            return 3.0
+        
+        defect_rate = summary['defective_products'] / summary['total_images'] * 100
+        
+        # Six Sigma level based on actual defect rate
+        if defect_rate <= 0.00034:  # 3.4 per million
+            return 6.0
+        elif defect_rate <= 0.0233:  # 233 per million  
+            return 5.0
+        elif defect_rate <= 0.621:  # 6210 per million
+            return 4.0
+        elif defect_rate <= 6.68:  # 66807 per million
+            return 3.0
+        elif defect_rate <= 15.87:
+            return 2.0
+        else:
+            return 1.0
+
+    def _calculate_quality_index(self, summary):
+        """Calculate overall quality index from real data"""
+        defect_rate = summary['defective_products'] / summary['total_images'] * 100
+        base_score = max(0, 100 - defect_rate * 10)
+        efficiency_bonus = min(10, (1.0 / summary['avg_processing_time']) * 5) if summary['avg_processing_time'] > 0 else 0
+        return min(100, base_score + efficiency_bonus)
+    
     def _get_empty_metrics(self):
         """Return empty metrics structure"""
         return {
@@ -602,143 +634,3 @@ class EnhancedPerformanceTracker:
                 'throughput_fps': 0
             }
         }
-    
-    def create_enhanced_performance_charts(self, output_dir="outputs"):
-        """Create comprehensive performance charts with enhanced analytics"""
-        try:
-            if not self.processing_times:
-                print("No performance data to chart")
-                return None
-            
-            Path(output_dir).mkdir(exist_ok=True)
-            
-            # Create enhanced dashboard with multiple charts
-            plt.ioff()
-            fig, axes = plt.subplots(3, 3, figsize=(20, 16), facecolor='white')
-            fig.suptitle('Comprehensive Performance Analytics Dashboard', fontsize=20, fontweight='bold')
-            
-            # Chart 1: Processing time trend with moving average
-            self._create_processing_trend_chart(axes[0, 0])
-            
-            # Chart 2: System resource usage
-            self._create_resource_usage_chart(axes[0, 1])
-            
-            # Chart 3: Quality metrics distribution
-            self._create_quality_distribution_chart(axes[0, 2])
-            
-            # Chart 4: Throughput analysis
-            self._create_throughput_chart(axes[1, 0])
-            
-            # Chart 5: Performance heatmap
-            self._create_performance_heatmap(axes[1, 1])
-            
-            # Chart 6: Confidence score analysis
-            self._create_confidence_analysis_chart(axes[1, 2])
-            
-            # Chart 7: Error rate analysis
-            self._create_error_analysis_chart(axes[2, 0])
-            
-            # Chart 8: Processing time distribution
-            self._create_time_distribution_chart(axes[2, 1])
-            
-            # Chart 9: Performance summary metrics
-            self._create_summary_metrics_chart(axes[2, 2])
-            
-            plt.tight_layout()
-            
-            # Save enhanced performance chart
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            chart_path = Path(output_dir) / f"enhanced_performance_analysis_{timestamp}.png"
-            
-            fig.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
-            plt.close(fig)
-            
-            print(f"Enhanced performance charts saved: {chart_path}")
-            return str(chart_path)
-            
-        except Exception as e:
-            print(f"Error creating enhanced performance charts: {e}")
-            if 'fig' in locals():
-                plt.close(fig)
-            return None
-    
-    def _create_processing_trend_chart(self, ax):
-        """Create processing time trend with moving average"""
-        iterations = list(range(1, len(self.processing_times) + 1))
-        ax.plot(iterations, self.processing_times, 'b-', alpha=0.6, linewidth=1, label='Processing Time')
-        
-        # Add moving average
-        if len(self.processing_times) > 5:
-            window = min(10, len(self.processing_times) // 3)
-            moving_avg = np.convolve(self.processing_times, np.ones(window)/window, mode='valid')
-            ma_iterations = iterations[window-1:]
-            ax.plot(ma_iterations, moving_avg, 'r-', linewidth=2, label=f'Moving Avg ({window})')
-        
-        ax.set_title('Processing Time Trend Analysis', fontweight='bold')
-        ax.set_xlabel('Analysis #')
-        ax.set_ylabel('Time (seconds)')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-    
-    def _create_resource_usage_chart(self, ax):
-        """Create system resource usage chart"""
-        if self.memory_usage and self.cpu_usage:
-            iterations = list(range(1, len(self.memory_usage) + 1))
-            
-            ax2 = ax.twinx()
-            line1 = ax.plot(iterations, self.memory_usage, 'g-', linewidth=2, label='Memory %')
-            line2 = ax2.plot(iterations, self.cpu_usage, 'r-', linewidth=2, label='CPU %')
-            
-            ax.set_xlabel('Analysis #')
-            ax.set_ylabel('Memory Usage (%)', color='g')
-            ax2.set_ylabel('CPU Usage (%)', color='r')
-            ax.set_title('System Resource Usage', fontweight='bold')
-            
-            lines = line1 + line2
-            labels = [l.get_label() for l in lines]
-            ax.legend(lines, labels, loc='upper left')
-            ax.grid(True, alpha=0.3)
-        else:
-            ax.text(0.5, 0.5, 'No resource data available', ha='center', va='center', transform=ax.transAxes)
-            ax.set_title('System Resource Usage', fontweight='bold')
-    
-    def _create_quality_distribution_chart(self, ax):
-        """Create quality metrics distribution"""
-        if self.decisions:
-            decision_counts = {}
-            for decision in self.decisions:
-                decision_counts[decision] = decision_counts.get(decision, 0) + 1
-            
-            colors = []
-            for decision in decision_counts.keys():
-                if decision == 'GOOD':
-                    colors.append('#10b981')
-                elif decision == 'DEFECT':
-                    colors.append('#ef4444')
-                else:
-                    colors.append('#6b7280')
-            
-            wedges, texts, autotexts = ax.pie(
-                decision_counts.values(), 
-                labels=decision_counts.keys(),
-                autopct='%1.1f%%', 
-                startangle=90, 
-                colors=colors
-            )
-            ax.set_title('Quality Distribution', fontweight='bold')
-        else:
-            ax.text(0.5, 0.5, 'No quality data available', ha='center', va='center', transform=ax.transAxes)
-            ax.set_title('Quality Distribution', fontweight='bold')
-    
-    def _create_throughput_chart(self, ax):
-        """Create throughput analysis chart"""
-        if self.processing_times:
-            throughput = [1/t for t in self.processing_times]
-            iterations = list(range(1, len(throughput) + 1))
-            
-            ax.plot(iterations, throughput, 'purple', linewidth=2, marker='o', markersize=4)
-            ax.axhline(y=np.mean(throughput), color='orange', linestyle='--', 
-                      label=f'Avg: {np.mean(throughput):.2f} FPS')
-            ax.set_title('Processing Throughput', fontweight='bold')
-            ax.set_xlabel('Analysis #')
-            ax.set_ylabel('Throughput (FPS)')

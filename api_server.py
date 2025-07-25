@@ -34,9 +34,9 @@ try:
     from utils.performance_tracker import EnhancedPerformanceTracker
     performance_tracker = EnhancedPerformanceTracker()  # Create instance
     PERFORMANCE_TRACKER_AVAILABLE = True
-    print("✅ Performance tracker module imported successfully")
+    print(" Performance tracker module imported successfully")
 except ImportError as e:
-    print(f"⚠️ Performance tracker not available: {e}")
+    print(f" Performance tracker not available: {e}")
     print("Using basic tracking")
     PERFORMANCE_TRACKER_AVAILABLE = False
     performance_tracker = None
@@ -45,7 +45,7 @@ except ImportError as e:
 try:
     from main import UnifiedDefectDetector, create_detector
     DETECTOR_AVAILABLE = True
-    print("✅ Main detection module imported successfully")
+    print(" Main detection module imported successfully")
 except ImportError as e:
     print(f"Warning: Main detection module not available: {e}")
     print("Using mock responses for development")
@@ -76,10 +76,10 @@ class EnhancedDefectDetectionAPI:
         # Initialize performance tracker
         if PERFORMANCE_TRACKER_AVAILABLE and performance_tracker:
             self.performance_tracker = performance_tracker
-            print("✅ Performance tracker initialized")
+            print(" Performance tracker initialized")
         else:
             self.performance_tracker = None
-            print("⚠️ Using basic performance tracking")
+            print(" Using basic performance tracking")
         
         # Initialize database
         self.init_database()
@@ -214,7 +214,7 @@ class EnhancedDefectDetectionAPI:
         conn.commit()
         conn.close()
         
-        print("✅ Database initialized successfully")
+        print(" Database initialized successfully")
     
     def _initialize_detector(self):
         """
@@ -226,17 +226,17 @@ class EnhancedDefectDetectionAPI:
             try:
                 self.detector = create_detector()
                 if self.detector and hasattr(self.detector, 'is_ready') and self.detector.is_ready():
-                    print("✅ Detection system ready for production")
+                    print(" Detection system ready for production")
                     self.detector_status = "ready"
                 else:
-                    print("⚠️  Detection system initialized but models not loaded")
+                    print("  Detection system initialized but models not loaded")
                     self.detector_status = "models_not_loaded"
             except Exception as e:
-                print(f"❌ Failed to initialize detector: {e}")
+                print(f" Failed to initialize detector: {e}")
                 self.detector = None
                 self.detector_status = "failed"
         else:
-            print("⚠️  Using mock detector for development/testing")
+            print("  Using mock detector for development/testing")
             self.detector = None
             self.detector_status = "mock"
             
@@ -250,17 +250,17 @@ class EnhancedDefectDetectionAPI:
             
             if self.detector:
                 self.realtime_processor = RealTimeProcessor(self.detector, self.performance_tracker)
-                print("✅ Real-time processor initialized")
+                print(" Real-time processor initialized")
             else:
                 # Mock real-time processor for development
                 self.realtime_processor = MockRealtimeProcessor()
-                print("⚠️ Using mock real-time processor (no detector)")
+                print(" Using mock real-time processor (no detector)")
                 
         except ImportError:
-            print("⚠️ Real-time processor module not available, using mock processor")
+            print(" Real-time processor module not available, using mock processor")
             self.realtime_processor = MockRealtimeProcessor()
         except Exception as e:
-            print(f"❌ Failed to initialize real-time processor: {e}")
+            print(f" Failed to initialize real-time processor: {e}")
             self.realtime_processor = MockRealtimeProcessor()
     
     def _setup_static_files(self):
@@ -301,7 +301,7 @@ class EnhancedDefectDetectionAPI:
         # Start background thread
         stats_thread = threading.Thread(target=update_stats_worker, daemon=True)
         stats_thread.start()
-        print("✅ Background tasks started")
+        print(" Background tasks started")
     
     def update_daily_stats(self):
         """
@@ -2596,13 +2596,13 @@ class EnhancedDefectDetectionAPI:
         Args:
             debug: Enable Flask debug mode
         """
-        print("🚀 Starting Enhanced Defect Detection Server")
+        print(" Starting Enhanced Defect Detection Server")
         print("=" * 60)
-        print(f"📊 Dashboard:     http://{self.host}:{self.port}")
-        print(f"🔬 New Analysis:  http://{self.host}:{self.port}/analysis")
-        print(f"📜 History:       http://{self.host}:{self.port}/history")
-        print(f"⚙️  Settings:      http://{self.host}:{self.port}/settings")
-        print(f"🚀 Real-time:     http://{self.host}:{self.port}/realtime")
+        print(f" Dashboard:     http://{self.host}:{self.port}")
+        print(f" New Analysis:  http://{self.host}:{self.port}/analysis")
+        print(f" History:       http://{self.host}:{self.port}/history")
+        print(f"  Settings:      http://{self.host}:{self.port}/settings")
+        print(f" Real-time:     http://{self.host}:{self.port}/realtime")
         print("=" * 60)
         print(f"   Health Check:  http://{self.host}:{self.port}/api/health")
         print(f"   Detect Image:  http://{self.host}:{self.port}/api/detect-image")
@@ -2616,14 +2616,14 @@ class EnhancedDefectDetectionAPI:
         print(f"   Session Stats: http://{self.host}:{self.port}/api/realtime/session-stats")
         print(f"   Stop Session:  http://{self.host}:{self.port}/api/realtime/stop-session")
         print("=" * 60)
-        print(f"📁 Static Files:  http://{self.host}:{self.port}/static/")
-        print(f"💾 Database:      {self.db_path}")
-        print(f"🤖 Detector:      {getattr(self, 'detector_status', 'unknown')}")
-        print(f"📈 Performance:   {'✅ Available' if self.has_performance_tracker() else '❌ Unavailable'}")
-        print(f"⚡ Real-time:     {'✅ Available' if self.realtime_processor else '❌ Unavailable'}")
+        print(f" Static Files:  http://{self.host}:{self.port}/static/")
+        print(f" Database:      {self.db_path}")
+        print(f" Detector:      {getattr(self, 'detector_status', 'unknown')}")
+        print(f" Performance:   {' Available' if self.has_performance_tracker() else ' Unavailable'}")
+        print(f" Real-time:     {' Available' if self.realtime_processor else ' Unavailable'}")
         print("=" * 60)
         
-        self.app.run(host=self.host, port=self.port, debug=debug, threaded=True)
+        self.app.run(host=self.host, port=self.port, debug=True, threaded=True, use_reloader=False)
 
 class MockRealtimeProcessor:
     """Mock real-time processor for development/testing"""

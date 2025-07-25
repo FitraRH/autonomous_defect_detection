@@ -7,3 +7,4 @@ temp_*.jpg
 .vscode/
 .idea/
 venv_clean/
+models/ganomaly.pt
