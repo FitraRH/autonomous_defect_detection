@@ -183,7 +183,7 @@ class JSONAPIServer:
         print(f"  Performance Metrics: GET /api/performance/metrics")
         print("=" * 50)
         
-        self.app.run(host=self.host, port=self.port, debug=debug, threaded=True)
+        self.app.run(host=self.host, port=self.port, debug=debug, threaded=True, use_reloader=False)
 
 
 def create_api_server(host='0.0.0.0', port=5000):
