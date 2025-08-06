@@ -12,7 +12,7 @@ MODELS_DIR = BASE_DIR / "models"
 OUTPUTS_DIR = BASE_DIR / "outputs"
 
 # Model paths - CORRECTED (removed double "models")
-ANOMALIB_MODEL_PATH = MODELS_DIR / "stfpm_compatible.pt"            # Fixed: removed extra "models/"
+ANOMALIB_MODEL_PATH = MODELS_DIR / "patchcore.pt"            # Fixed: removed extra "models/"
 HRNET_MODEL_PATH = MODELS_DIR / "defect_segmentation_model.pth"  # Fixed: removed extra "models/"
 
 # Detection thresholds

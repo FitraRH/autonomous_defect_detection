@@ -1,5 +1,5 @@
 """
-Detection Controller for JSON API
+Detection Controller for JSON API - FIXED FORM DATA HANDLING
 Handles detection-related requests and responses
 Business logic delegated to services
 """
@@ -16,6 +16,7 @@ class DetectionController:
     """
     Controller for detection-related API endpoints
     Handles request processing and response formatting
+    FIXED: Proper form data and JSON handling
     """
     
     def __init__(self, detection_service, database_service):
@@ -74,27 +75,76 @@ class DetectionController:
             }), 500
     
     def process_image(self, request):
-        """Process single image for defect detection"""
+        """Process single image for defect detection - FIXED VERSION"""
         try:
-            # Validate request
-            validation_result = self._validate_image_request(request)
-            if validation_result['error']:
-                return jsonify(validation_result), 400
+            print(f"DEBUG: Request method: {request.method}")
+            print(f"DEBUG: Content type: {request.content_type}")
+            print(f"DEBUG: Has files: {'image' in request.files if request.files else False}")
+            print(f"DEBUG: Has JSON: {bool(request.json)}")
             
-            # Extract image data
-            image_data = self._extract_image_data(request)
+            # FIXED: Handle both form data and JSON properly
+            image_data = None
+            filename = None
+            
+            # Try form data first (multipart/form-data)
+            if request.files and 'image' in request.files:
+                print("DEBUG: Processing as form data")
+                file = request.files['image']
+                if file.filename == '':
+                    return jsonify({
+                        'status': 'error',
+                        'error': 'No file selected',
+                        'timestamp': datetime.now().isoformat()
+                    }), 400
+                
+                image_data = file.read()
+                filename = file.filename or f"upload_{int(time.time())}.jpg"
+                
+            # Try JSON data (application/json)
+            elif request.json and 'image_base64' in request.json:
+                print("DEBUG: Processing as JSON base64")
+                base64_data = request.json['image_base64']
+                if base64_data.startswith('data:image'):
+                    base64_data = base64_data.split(',')[1]
+                
+                try:
+                    image_data = base64.b64decode(base64_data)
+                except Exception as decode_error:
+                    return jsonify({
+                        'status': 'error',
+                        'error': f'Invalid base64 image data: {str(decode_error)}',
+                        'timestamp': datetime.now().isoformat()
+                    }), 400
+                
+                filename = request.json.get('filename', f"upload_{int(time.time())}.jpg")
+            
+            # If no image data found
             if not image_data:
                 return jsonify({
                     'status': 'error',
-                    'error': 'Failed to extract image data',
+                    'error': 'No image provided. Use form-data with "image" field or JSON with "image_base64"',
+                    'debug_info': {
+                        'content_type': request.content_type,
+                        'has_files': bool(request.files),
+                        'has_json': bool(request.json),
+                        'files_keys': list(request.files.keys()) if request.files else [],
+                        'json_keys': list(request.json.keys()) if request.json else []
+                    },
                     'timestamp': datetime.now().isoformat()
                 }), 400
             
+            # Validate file size (5MB limit)
+            if len(image_data) > 5 * 1024 * 1024:
+                return jsonify({
+                    'status': 'error',
+                    'error': 'File too large. Maximum size is 5MB',
+                    'timestamp': datetime.now().isoformat()
+                }), 400
+            
+            print(f"DEBUG: Processing image - filename: {filename}, size: {len(image_data)} bytes")
+            
             # Process image
-            result = self.detection_service.process_single_image(
-                image_data['data'],
-                image_data['filename']
-            )
+            result = self.detection_service.process_single_image(image_data, filename)
             
             if not result:
                 return jsonify({
@@ -116,9 +166,13 @@ class DetectionController:
             })
             
         except Exception as e:
+            print(f"ERROR in process_image: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            
             return jsonify({
                 'status': 'error',
-                'error': str(e),
+                'error': f'Processing error: {str(e)}',
                 'timestamp': datetime.now().isoformat()
             }), 500
     
@@ -126,21 +180,50 @@ class DetectionController:
         """Process batch of images"""
         try:
             # Validate batch request
-            validation_result = self._validate_batch_request(request)
-            if validation_result['error']:
-                return jsonify(validation_result), 400
-            
-            # Extract batch data
-            batch_data = self._extract_batch_data(request)
-            if not batch_data:
+            if not request.json or 'images' not in request.json:
                 return jsonify({
                     'status': 'error',
-                    'error': 'Failed to extract batch data',
+                    'error': 'No images array provided in JSON body',
+                    'timestamp': datetime.now().isoformat()
+                }), 400
+            
+            images_data = request.json['images']
+            if not isinstance(images_data, list) or len(images_data) == 0:
+                return jsonify({
+                    'status': 'error',
+                    'error': 'Images must be a non-empty array',
+                    'timestamp': datetime.now().isoformat()
+                }), 400
+            
+            # Extract batch data
+            batch_images = []
+            for i, image_item in enumerate(images_data):
+                if 'image_base64' not in image_item:
+                    continue
+                
+                base64_data = image_item['image_base64']
+                if base64_data.startswith('data:image'):
+                    base64_data = base64_data.split(',')[1]
+                
+                try:
+                    image_data = base64.b64decode(base64_data)
+                    batch_images.append({
+                        'data': image_data,
+                        'filename': image_item.get('filename', f"batch_image_{i+1}.jpg")
+                    })
+                except Exception as decode_error:
+                    print(f"Error decoding image {i+1}: {decode_error}")
+                    continue
+            
+            if not batch_images:
+                return jsonify({
+                    'status': 'error',
+                    'error': 'No valid images found in batch',
                     'timestamp': datetime.now().isoformat()
                 }), 400
             
             # Process batch
-            results = self.detection_service.process_image_batch(batch_data)
+            results = self.detection_service.process_image_batch(batch_images)
             
             # Save batch results
             batch_id = self.database_service.save_batch_results(results)
@@ -155,6 +238,7 @@ class DetectionController:
             })
             
         except Exception as e:
+            print(f"ERROR in process_batch: {str(e)}")
             return jsonify({
                 'status': 'error',
                 'error': str(e),
@@ -164,22 +248,44 @@ class DetectionController:
     def process_video(self, request):
         """Process video for defect detection"""
         try:
-            # Validate video request
-            validation_result = self._validate_video_request(request)
-            if validation_result['error']:
-                return jsonify(validation_result), 400
+            # Handle video file upload (form data) or base64 (JSON)
+            video_data = None
+            filename = None
             
-            # Extract video data
-            video_data = self._extract_video_data(request)
+            if request.files and 'video' in request.files:
+                file = request.files['video']
+                if file.filename == '':
+                    return jsonify({
+                        'status': 'error',
+                        'error': 'No video file selected',
+                        'timestamp': datetime.now().isoformat()
+                    }), 400
+                
+                video_data = file.read()
+                filename = file.filename or f"video_{int(time.time())}.mp4"
+                
+            elif request.json and 'video_base64' in request.json:
+                base64_data = request.json['video_base64']
+                try:
+                    video_data = base64.b64decode(base64_data)
+                except Exception as decode_error:
+                    return jsonify({
+                        'status': 'error',
+                        'error': f'Invalid base64 video data: {str(decode_error)}',
+                        'timestamp': datetime.now().isoformat()
+                    }), 400
+                
+                filename = request.json.get('filename', f"video_{int(time.time())}.mp4")
+            
             if not video_data:
                 return jsonify({
                     'status': 'error',
-                    'error': 'Failed to extract video data',
+                    'error': 'No video provided',
                     'timestamp': datetime.now().isoformat()
                 }), 400
             
             # Process video
-            result = self.detection_service.process_video(video_data)
+            result = self.detection_service.process_video({'data': video_data, 'filename': filename})
             
             # Save video analysis
             video_id = self.database_service.save_video_analysis(result)
@@ -282,18 +388,35 @@ class DetectionController:
                 }), 400
             
             # Extract frame data
-            frame_data = self._extract_frame_data(request)
-            if not frame_data:
+            if not request.json or 'frame_base64' not in request.json:
                 return jsonify({
                     'status': 'error',
-                    'error': 'Failed to extract frame data',
+                    'error': 'No frame_base64 data provided',
                     'timestamp': datetime.now().isoformat()
                 }), 400
+            
+            base64_data = request.json['frame_base64']
+            if base64_data.startswith('data:image'):
+                base64_data = base64_data.split(',')[1]
+            
+            try:
+                frame_data = base64.b64decode(base64_data)
+            except Exception as decode_error:
+                return jsonify({
+                    'status': 'error',
+                    'error': f'Invalid base64 frame data: {str(decode_error)}',
+                    'timestamp': datetime.now().isoformat()
+                }), 400
+            
+            frame_info = {
+                'data': frame_data,
+                'timestamp': request.json.get('timestamp', time.time())
+            }
             
             # Process frame
             result = self.detection_service.process_realtime_frame(
                 self.realtime_session_id,
-                frame_data
+                frame_info
             )
             
             # Format real-time response
@@ -392,129 +515,6 @@ class DetectionController:
                 'error': str(e),
                 'timestamp': datetime.now().isoformat()
             }), 500
-    
-    def _validate_image_request(self, request):
-        """Validate image detection request"""
-        if not request:
-            return {'error': 'No request data'}
-        
-        # Check for image data in files or JSON
-        has_file = 'image' in request.files and request.files['image']
-        has_json = request.json and 'image_base64' in request.json
-        
-        if not has_file and not has_json:
-            return {'error': 'No image data provided'}
-        
-        return {'error': None}
-    
-    def _validate_batch_request(self, request):
-        """Validate batch processing request"""
-        if not request or not request.json:
-            return {'error': 'No request data'}
-        
-        if 'images' not in request.json:
-            return {'error': 'No images array provided'}
-        
-        if not isinstance(request.json['images'], list):
-            return {'error': 'Images must be an array'}
-        
-        if len(request.json['images']) == 0:
-            return {'error': 'Images array is empty'}
-        
-        return {'error': None}
-    
-    def _validate_video_request(self, request):
-        """Validate video processing request"""
-        if not request:
-            return {'error': 'No request data'}
-        
-        has_file = 'video' in request.files and request.files['video']
-        has_json = request.json and 'video_base64' in request.json
-        
-        if not has_file and not has_json:
-            return {'error': 'No video data provided'}
-        
-        return {'error': None}
-    
-    def _extract_image_data(self, request):
-        """Extract image data from request"""
-        try:
-            if 'image' in request.files:
-                file = request.files['image']
-                return {
-                    'data': file.read(),
-                    'filename': file.filename or f"upload_{int(time.time())}.jpg"
-                }
-            elif request.json and 'image_base64' in request.json:
-                base64_data = request.json['image_base64']
-                if base64_data.startswith('data:image'):
-                    base64_data = base64_data.split(',')[1]
-                
-                return {
-                    'data': base64.b64decode(base64_data),
-                    'filename': request.json.get('filename', f"upload_{int(time.time())}.jpg")
-                }
-        except Exception as e:
-            print(f"Error extracting image data: {e}")
-            return None
-    
-    def _extract_batch_data(self, request):
-        """Extract batch data from request"""
-        try:
-            batch_images = []
-            images_data = request.json.get('images', [])
-            
-            for i, image_item in enumerate(images_data):
-                if 'image_base64' in image_item:
-                    base64_data = image_item['image_base64']
-                    if base64_data.startswith('data:image'):
-                        base64_data = base64_data.split(',')[1]
-                    
-                    batch_images.append({
-                        'data': base64.b64decode(base64_data),
-                        'filename': image_item.get('filename', f"batch_image_{i+1}.jpg")
-                    })
-            
-            return batch_images
-            
-        except Exception as e:
-            print(f"Error extracting batch data: {e}")
-            return None
-    
-    def _extract_video_data(self, request):
-        """Extract video data from request"""
-        try:
-            if 'video' in request.files:
-                file = request.files['video']
-                return {
-                    'data': file.read(),
-                    'filename': file.filename or f"video_{int(time.time())}.mp4"
-                }
-            elif request.json and 'video_base64' in request.json:
-                base64_data = request.json['video_base64']
-                return {
-                    'data': base64.b64decode(base64_data),
-                    'filename': request.json.get('filename', f"video_{int(time.time())}.mp4")
-                }
-        except Exception as e:
-            print(f"Error extracting video data: {e}")
-            return None
-    
-    def _extract_frame_data(self, request):
-        """Extract frame data from real-time request"""
-        try:
-            if request.json and 'frame_base64' in request.json:
-                base64_data = request.json['frame_base64']
-                if base64_data.startswith('data:image'):
-                    base64_data = base64_data.split(',')[1]
-                
-                return {
-                    'data': base64.b64decode(base64_data),
-                    'timestamp': request.json.get('timestamp', time.time())
-                }
-        except Exception as e:
-            print(f"Error extracting frame data: {e}")
-            return None
     
     def _format_detection_response(self, result, analysis_id):
         """Format single image detection response"""
